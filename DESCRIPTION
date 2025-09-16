@@ -1,7 +1,7 @@
 Package: funbootband
 Title: Simultaneous Prediction and Confidence Bands for Functional Data
 Version: 0.1.0
-Authors@R: person("Daniel","Koska", email="dkoska@proton.me", role=c("aut","cre"), comment = c(ORCID = "0000-0002-8245-5222")))
+Authors@R: person("Daniel","Koska", email="dkoska@proton.me", role=c("aut","cre"), comment = c(ORCID = "0000-0002-8245-5222"))
 Description: Computes simultaneous prediction and confidence bands for dense functional data,
     including hierarchical (clustered) designs via deterministic bootstrap resampling.
     Provides a simple API ('band()') and an Rcpp backend for performance.
@@ -18,3 +18,4 @@ Roxygen: list(markdown = TRUE)
 SystemRequirements: C++11
 Config/testthat/edition: 3
 ByteCompile: true
+RoxygenNote: 7.3.3
