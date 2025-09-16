@@ -2,7 +2,7 @@
 % Please edit documentation in R/band.R
 \name{band}
 \alias{band}
-\title{Simultaneous Bands for Functional Functional Data (Prediction or Confidence)}
+\title{Simultaneous Bands for Functional Data (Prediction or Confidence)}
 \usage{
 band(
   data,

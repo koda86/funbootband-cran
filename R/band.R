@@ -1,4 +1,4 @@
-#' Simultaneous Bands for Functional Functional Data (Prediction or Confidence)
+#' Simultaneous Bands for Functional Data (Prediction or Confidence)
 #'
 #' @description
 #' Create **simultaneous** bootstrap bands for dense functional data (rows = time, cols = curves).
@@ -67,12 +67,14 @@ band <- function(data,
   # ---- Input normalization & checks ----
   if (is.data.frame(data)) data <- as.matrix(data)
   if (!is.matrix(data) || !is.numeric(data)) stop("`data` must be a numeric matrix [T x n].")
+  if (any(!is.finite(data))) stop("`data` must not contain NA/NaN/Inf.")
   Tlen <- nrow(data); ncur <- ncol(data)
   if (Tlen < 2L || ncur < 2L) stop("`data` must have at least 2 time points (rows) and 2 curves (cols).")
   if (!(alpha > 0 && alpha < 1)) stop("`alpha` must be in (0,1).")
   if (!is.logical(iid) || length(iid) != 1L) stop("`iid` must be a logical scalar.")
+
+  # clusters
   if (!iid) {
-    # infer or validate clusters
     if (!is.null(id)) {
       if (length(id) != ncur) stop("`id` must have length ncol(data).")
       id <- as.integer(as.factor(id))
@@ -81,74 +83,33 @@ band <- function(data,
       if (is.null(cn) || any(!nzchar(cn)) || anyNA(cn)) {
         stop("For iid = FALSE, supply `id` or meaningful column names to infer clusters.")
       }
-      # cluster prefix up to first _ / - / .
       id <- tolower(trimws(sub("(_|-|\\.).*$", "", cn)))
       id <- as.integer(as.factor(id))
     }
-    # sanity: at least one cluster with size > 1
-    sizes <- tabulate(id)
-    if (!any(sizes > 1L)) stop("Cluster structure inferred/provided has no cluster with size > 1.")
+    if (!any(tabulate(id) > 1L)) stop("Cluster structure inferred/provided has no cluster with size > 1.")
+  } else {
+    id <- NULL
   }
 
   # ---- Basic estimates ----
   mu_hat <- rowMeans(data)                      # mean curve, length T
-  # sample sd per time (avoid zero with small ridge)
-  sd_hat <- apply(data, 1L, stats::sd)
-  sd_hat[sd_hat == 0] <- 1e-12
-
-  # helper: draw one residual curve index for prediction band
-  draw_one_index <- function() {
-    if (iid) {
-      sample.int(ncur, 1L)
-    } else {
-      # cluster then member (uniform over clusters)
-      cl_ids <- unique(id)
-      cl <- sample(cl_ids, 1L)
-      which(id == cl)[ sample.int(sum(id == cl), 1L) ]
-    }
-  }
-
-  # helper: resample indices for mean bootstrap (confidence band)
-  resample_indices_conf <- function() {
-    if (iid) {
-      sample.int(ncur, ncur, replace = TRUE)
-    } else {
-      # cluster bootstrap: sample clusters with replacement, include all their members
-      out <- integer(0L)
-      cl_ids <- unique(id)
-      sizes  <- tabulate(id)
-      # keep adding whole clusters until reaching >= ncur, then trim
-      while (length(out) < ncur) {
-        cl <- sample(cl_ids, 1L)
-        out <- c(out, which(id == cl))
-      }
-      out[seq_len(ncur)]
-    }
-  }
+  sd_hat <- apply(data, 1L, stats::sd)          # sample sd per time
+  sd_hat[sd_hat == 0] <- 1e-12                  # ridge for stability
 
   if (type == "prediction") {
-    # M_i = max_t |Y*_i(t) - mu_hat(t)| / sd_hat(t), where Y*_i uses a resampled residual curve
-    M <- numeric(B)
-    # precompute residuals (T x n)
+    # residuals matrix (T x n)
     resid_mat <- data - matrix(mu_hat, nrow = Tlen, ncol = ncur, byrow = FALSE)
-    for (i in seq_len(B)) {
-      pick <- draw_one_index()
-      Y_star <- mu_hat + resid_mat[, pick]
-      M[i] <- max(abs(Y_star - mu_hat) / sd_hat)
-    }
+    # pre-sample indices in R for determinism; C++ consumes them
+    pick_idx  <- .resample_prediction_idx(n = ncur, B = B, iid = iid, id = id)
+    M <- prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, pick_idx)
     c_p <- stats::quantile(M, probs = 1 - alpha, names = FALSE, type = 7)
     lower <- mu_hat - c_p * sd_hat
     upper <- mu_hat + c_p * sd_hat
 
   } else { # confidence
-    # bootstrap the mean curve; standard error se_hat = sd_hat / sqrt(n)
     se_hat <- sd_hat / sqrt(ncur)
-    C <- numeric(B)
-    for (i in seq_len(B)) {
-      idx <- resample_indices_conf()
-      mu_star <- rowMeans(data[, idx, drop = FALSE])
-      C[i] <- max(abs(mu_star - mu_hat) / se_hat)
-    }
+    idx_mat <- .resample_confidence_idx_mat(n = ncur, B = B, iid = iid, id = id)
+    C <- confidence_max_dev_cpp(data, mu_hat, se_hat, idx_mat)
     c_c <- stats::quantile(C, probs = 1 - alpha, names = FALSE, type = 7)
     lower <- mu_hat - c_c * se_hat
     upper <- mu_hat + c_c * se_hat
@@ -159,7 +120,43 @@ band <- function(data,
     mean  = as.numeric(mu_hat),
     upper = as.numeric(upper),
     meta  = list(type = type, alpha = alpha, iid = iid, B = as.integer(B),
-                 n = ncur, T = Tlen)
+                 n = ncur, T = Tlen, engine = "cpp")
   )
+}
+
+# ----- internal helpers (do not export) -----
+
+# pick one residual curve per bootstrap draw (length B)
+.resample_prediction_idx <- function(n, B, iid, id) {
+  if (iid || is.null(id)) {
+    sample.int(n, B, replace = TRUE)
+  } else {
+    cl <- split(seq_len(n), id)
+    cl_ids <- seq_along(cl)
+    vapply(seq_len(B), function(i) {
+      k <- sample(cl_ids, 1L)
+      sample(cl[[k]], 1L)
+    }, integer(1L))
+  }
+}
+
+# return a B x n matrix of curve indices for bootstrap means
+.resample_confidence_idx_mat <- function(n, B, iid, id) {
+  if (iid || is.null(id)) {
+    matrix(sample.int(n, B * n, replace = TRUE), nrow = B, ncol = n)
+  } else {
+    cl <- split(seq_len(n), id)
+    cl_ids <- seq_along(cl)
+    out <- matrix(NA_integer_, nrow = B, ncol = n)
+    for (b in seq_len(B)) {
+      idx <- integer(0L)
+      while (length(idx) < n) {
+        k <- sample(cl_ids, 1L)
+        idx <- c(idx, cl[[k]])
+      }
+      out[b, ] <- idx[seq_len(n)]
+    }
+    out
+  }
 }
 
