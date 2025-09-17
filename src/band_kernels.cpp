@@ -3,32 +3,51 @@ using namespace Rcpp;
 
 // Compute max deviation for prediction band
 // [[Rcpp::export]]
-NumericVector prediction_max_dev_cpp(const NumericMatrix resid_mat, // T x n
-                                     const NumericVector mu_hat,    // length T
-                                     const NumericVector sd_hat,    // length T (ridge applied in R)
-                                     const IntegerVector pick_idx)  // length B, 1..n (R indices)
+Rcpp::NumericVector prediction_max_dev_cpp(const Rcpp::NumericMatrix resid_mat, // T x n, = data - mu_hat
+                                           const Rcpp::NumericVector mu_hat,    // length T
+                                           const Rcpp::NumericVector sd_hat,    // length T (already ridged in R)
+                                           const Rcpp::IntegerMatrix idx_mat)   // B x n, 1..n (R indices)
 {
   const int T = resid_mat.nrow();
   const int n = resid_mat.ncol();
-  const int B = pick_idx.size();
+  const int B = idx_mat.nrow();
 
-  if (mu_hat.size() != T) stop("mu_hat length must match nrow(resid_mat).");
-  if (sd_hat.size() != T) stop("sd_hat length must match nrow(resid_mat).");
+  if (mu_hat.size() != T) Rcpp::stop("mu_hat length must match nrow(resid_mat).");
+  if (sd_hat.size() != T) Rcpp::stop("sd_hat length must match nrow(resid_mat).");
 
-  NumericVector M(B);
+  Rcpp::NumericVector M(B);
 
+  // For each bootstrap replicate:
+  // 1) form mu_star(t) = mean over columns idx_mat[b, ]
+  // 2) form delta_resid(t) = mu_star(t) - mu_hat(t)
+  // 3) for ALL curves k, compute max_t | (resid_mat(t,k) - delta_resid(t)) / sd_hat[t] |
   for (int b = 0; b < B; ++b) {
-    int j = pick_idx[b] - 1; // 1-based -> 0-based
-    if (j < 0 || j >= n) stop("pick_idx out of bounds.");
-
-    double m = 0.0;
-    for (int t = 0; t < T; ++t) {
-      double ystar = mu_hat[t] + resid_mat(t, j);
-      double z = std::fabs((ystar - mu_hat[t]) / sd_hat[t]);
-      if (z > m) m = z;
+    // step 1: mu_star
+    std::vector<double> mu_star(T, 0.0);
+    for (int j = 0; j < n; ++j) {
+      int col = idx_mat(b, j) - 1;               // R (1-based) -> C++ (0-based)
+      if (col < 0 || col >= n) Rcpp::stop("idx_mat out of bounds.");
+      for (int t = 0; t < T; ++t) {
+        mu_star[t] += resid_mat(t, col) + mu_hat[t]; // resid + mu_hat = original data
+      }
     }
-    M[b] = m;
+    for (int t = 0; t < T; ++t) mu_star[t] /= static_cast<double>(n);
+
+    // step 2: delta_resid = mu_star - mu_hat
+    std::vector<double> delta_resid(T);
+    for (int t = 0; t < T; ++t) delta_resid[t] = mu_star[t] - mu_hat[t];
+
+    // step 3: max over k,t
+    double maxdev = 0.0;
+    for (int k = 0; k < n; ++k) {
+      for (int t = 0; t < T; ++t) {
+        double z = std::fabs((resid_mat(t, k) - delta_resid[t]) / sd_hat[t]);
+        if (z > maxdev) maxdev = z;
+      }
+    }
+    M[b] = maxdev;
   }
+
   return M;
 }
 
