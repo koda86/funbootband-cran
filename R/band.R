@@ -37,7 +37,7 @@
 #'
 #' ## hierarchical example with clustered curves
 #' set.seed(2)
-#' T  <- 60; m <- c(8, 7, 6); K <- length(m)
+#' T  <- 100; m <- c(8, 7, 6); K <- length(m)
 #' t  <- seq(0, 1, length.out = T)
 #' mu <- list(
 #'   function(x) 0.8 * sin(2*pi*x) + 0.2,
@@ -52,7 +52,7 @@
 #' Ylist <- lapply(seq_len(K), function(k) sapply(seq_len(m[k]), function(i) gen_curve(k)))
 #' Yh    <- do.call(cbind, Ylist)
 #' id    <- rep(seq_len(K), times = m)
-#' fitH  <- band(Yh, type = "prediction", alpha = 0.1, iid = FALSE, id = id, B = 60)
+#' fitH  <- band(Yh, type = "prediction", alpha = 0.1, iid = FALSE, id = id, B = 1000)
 #'
 #' # plot: gray raw curves, shaded band, black mean, colored cluster means
 #' xh    <- seq_len(fitH$meta$T)
