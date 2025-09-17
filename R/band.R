@@ -120,18 +120,17 @@ band <- function(data,
   sd_hat[sd_hat == 0] <- 1e-12                  # ridge for stability
 
   if (type == "prediction") {
-    # residuals matrix (T x n)
     resid_mat <- data - matrix(mu_hat, nrow = Tlen, ncol = ncur, byrow = FALSE)
-    # pre-sample indices in R for determinism; C++ consumes them
-    pick_idx  <- .resample_prediction_idx(n = ncur, B = B, iid = iid, id = id)
-    M <- prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, pick_idx)
+    idx_mat   <- .resample_idx_mat_two_stage(n = ncur, B = B, iid = iid, id = id)
+    # pass the whole matrix (B x n)
+    M <- prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, idx_mat)
     c_p <- stats::quantile(M, probs = 1 - alpha, names = FALSE, type = 7)
     lower <- mu_hat - c_p * sd_hat
     upper <- mu_hat + c_p * sd_hat
 
   } else { # confidence
     se_hat <- sd_hat / sqrt(ncur)
-    idx_mat <- .resample_confidence_idx_mat(n = ncur, B = B, iid = iid, id = id)
+    idx_mat <- .resample_idx_mat_two_stage(n = ncur, B = B, iid = iid, id = id)
     C <- confidence_max_dev_cpp(data, mu_hat, se_hat, idx_mat)
     c_c <- stats::quantile(C, probs = 1 - alpha, names = FALSE, type = 7)
     lower <- mu_hat - c_c * se_hat
@@ -149,22 +148,9 @@ band <- function(data,
 
 # ----- internal helpers (do not export) -----
 
-# pick one residual curve per bootstrap draw (length B)
-.resample_prediction_idx <- function(n, B, iid, id) {
-  if (iid || is.null(id)) {
-    sample.int(n, B, replace = TRUE)
-  } else {
-    cl <- split(seq_len(n), id)
-    cl_ids <- seq_along(cl)
-    vapply(seq_len(B), function(i) {
-      k <- sample(cl_ids, 1L)
-      sample(cl[[k]], 1L)
-    }, integer(1L))
-  }
-}
-
-# return a B x n matrix of curve indices for bootstrap means
-.resample_confidence_idx_mat <- function(n, B, iid, id) {
+# One curve per column draw, but clusters first (Stage 1), then curve within cluster (Stage 2)
+# B x n matrix for bootstrap means (confidence) *and* prediction
+.resample_idx_mat_two_stage <- function(n, B, iid, id) {
   if (iid || is.null(id)) {
     matrix(sample.int(n, B * n, replace = TRUE), nrow = B, ncol = n)
   } else {
@@ -172,12 +158,16 @@ band <- function(data,
     cl_ids <- seq_along(cl)
     out <- matrix(NA_integer_, nrow = B, ncol = n)
     for (b in seq_len(B)) {
-      idx <- integer(0L)
-      while (length(idx) < n) {
-        k <- sample(cl_ids, 1L)
-        idx <- c(idx, cl[[k]])
+      # within a replicate, draw within clusters w/o replacement until a cluster is exhausted,
+      # then continue with replacement
+      avail <- lapply(cl, identity)
+      for (j in seq_len(n)) {
+        k <- sample(cl_ids, 1L)                      # Stage 1: pick a cluster
+        if (length(avail[[k]]) == 0L) avail[[k]] <- cl[[k]]  # replenish -> with replacement
+        pos <- sample.int(length(avail[[k]]), 1L)    # Stage 2: pick one curve within cluster
+        out[b, j] <- avail[[k]][[pos]]
+        avail[[k]] <- avail[[k]][-pos]
       }
-      out[b, ] <- idx[seq_len(n)]
     }
     out
   }
