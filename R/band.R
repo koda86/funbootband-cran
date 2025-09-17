@@ -1,55 +1,78 @@
-#' Simultaneous Bands for Functional Data (Prediction or Confidence)
+#' Simultaneous Bands for Functional Data
 #'
-#' @description
-#' Create **simultaneous** bootstrap bands for dense functional data (rows = time, cols = curves).
-#' Supports **hierarchical/clustered** designs via a simple cluster bootstrap.
+#' Create simultaneous bootstrap bands for dense functional data
+#' (rows are time points, columns are curves). Supports clustered designs
+#' via a simple cluster bootstrap when `iid = FALSE`.
 #'
-#' @param data Numeric matrix \code{[T x n]} with rows = time points and columns = curves.
-#'             A data.frame of numeric columns is also accepted and will be coerced to a matrix.
-#' @param type One of \code{c("prediction","confidence")}.
-#'   - \code{"prediction"}: band for a **new individual** curve.
-#'   - \code{"confidence"}: band for the **mean function** \eqn{\mu(t)}.
-#' @param alpha Numeric in (0,1). Use \code{0.05} for 95\% bands.
-#' @param iid Logical; if \code{FALSE}, use a **cluster bootstrap** (needs \code{id} or
-#'            infers clusters from column-name prefixes).
-#' @param id Optional integer/factor vector of length \code{ncol(data)} giving a cluster id
-#'           for each curve (used when \code{iid = FALSE}). If \code{NULL}, and \code{iid = FALSE},
-#'           clusters are inferred from column names by prefix (up to first `_`/`-`/`.`).
-#' @param B Integer, number of bootstrap iterations (e.g. 1000 for final results; use smaller in examples/tests).
-#' @return A list with
-#'   \item{lower}{numeric vector length \code{T} (lower band).}
-#'   \item{mean}{numeric vector length \code{T} (estimated mean).}
-#'   \item{upper}{numeric vector length \code{T} (upper band).}
-#'   \item{meta}{list with settings (type, alpha, iid, B, n, T).}
+#' @param data Numeric matrix with T rows (time) and n columns (curves).
+#'   A data.frame of numeric columns is also accepted and coerced to a matrix.
+#' @param type Character, either "prediction" or "confidence".
+#' @param alpha Numeric in (0, 1). Use 0.05 for 95% bands.
+#' @param iid Logical; if FALSE, use a cluster bootstrap (requires `id` or
+#'   infers clusters from column-name prefixes).
+#' @param id Optional integer/factor vector of length ncol(data) giving a cluster id
+#'   for each curve (used when `iid = FALSE`). If NULL and `iid = FALSE`, clusters
+#'   are inferred from column names by prefix (up to the first underscore, hyphen, or dot).
+#' @param B Integer, number of bootstrap iterations (e.g., 1000 for final results;
+#'   use smaller values in examples/tests).
 #'
-#' @details
-#' **Simultaneity** is enforced via the max-deviation approach:
-#' - For \code{type="prediction"}: compute \eqn{M_i = \max_t |Y_i^\*(t) - \hat\mu(t)| / \hat\sigma(t)} and take
-#'   \eqn{c_p = Q_{1-\alpha}(M_i)}; then band is \eqn{\hat\mu(t) \pm c_p\,\hat\sigma(t)}.
-#' - For \code{type="confidence"}: bootstrap the mean curve \eqn{\hat\mu_i^\*(t)}, form
-#'   \eqn{C_i = \max_t |\hat\mu_i^\*(t) - \hat\mu(t)| / \widehat{\mathrm{se}}(t)} with
-#'   \eqn{\widehat{\mathrm{se}}(t) = \hat\sigma(t)/\sqrt{n}}, then \eqn{c_c = Q_{1-\alpha}(C_i)} and band is
-#'   \eqn{\hat\mu(t) \pm c_c\,\widehat{\mathrm{se}}(t)}.
-#'
-#' Cluster bootstrap (\code{iid = FALSE}): for the **confidence** band we resample **clusters** with replacement
-#' and include all member curves of each drawn cluster until we reach \code{n} curves; for the **prediction** band
-#' we draw one cluster (uniformly over clusters) and then one of its member curves for the residual.
-#'
-#' @section Input checks:
-#' The function errors if \code{data} is not numeric, has <2 rows or <2 columns, or if \code{iid = FALSE}
-#' but no cluster structure can be determined.
+#' @return A list with elements `lower`, `mean`, `upper` (each of length T) and `meta`
+#'   (a list with settings such as type, alpha, iid, B, n, T).
 #'
 #' @examples
 #' \donttest{
+#' ## i.i.d. example with shaded band
 #' set.seed(1)
-#' T <- 60; n <- 30
-#' Y <- matrix(rnorm(T*n, sd = .3), nrow = T, ncol = n)
+#' T <- 40; n <- 12
+#' Y <- matrix(rnorm(T * n, sd = 0.3), nrow = T, ncol = n)
+#' fit <- band(Y, type = "prediction", alpha = 0.1, iid = TRUE, B = 50)
+#' x <- seq_len(fit$meta$T)
+#' plot(x, fit$mean, type = "n", ylim = range(c(fit$lower, fit$upper)),
+#'      xlab = "Index", ylab = "Value", main = "Prediction band")
+#' polygon(c(x, rev(x)), c(fit$lower, rev(fit$upper)),
+#'         col = grDevices::adjustcolor("steelblue", alpha.f = 0.3), border = NA)
+#' lines(x, fit$mean, lwd = 2)
+#' lines(x, fit$lower, lty = 2)
+#' lines(x, fit$upper, lty = 2)
 #'
-#' # Prediction band (i.i.d.)
-#' fitP <- band(Y, type = "prediction", alpha = 0.1, iid = TRUE, B = 200)
+#' ## hierarchical example with clustered curves
+#' set.seed(2)
+#' T  <- 60; m <- c(8, 7, 6); K <- length(m)
+#' t  <- seq(0, 1, length.out = T)
+#' mu <- list(
+#'   function(x) 0.8 * sin(2*pi*x) + 0.2,
+#'   function(x) 0.5 * cos(2*pi*x) - 0.1,
+#'   function(x) 0.6 * sin(4*pi*x)
+#' )
+#' Bm <- cbind(sin(2*pi*t), cos(2*pi*t), sin(4*pi*t))
+#' gen_curve <- function(k) {
+#'   sc <- rnorm(ncol(Bm), sd = c(0.25, 0.18, 0.12))
+#'   mu[[k]](t) + as.vector(Bm %*% sc) + rnorm(T, sd = 0.15)
+#' }
+#' Ylist <- lapply(seq_len(K), function(k) sapply(seq_len(m[k]), function(i) gen_curve(k)))
+#' Yh    <- do.call(cbind, Ylist)
+#' id    <- rep(seq_len(K), times = m)
+#' fitH  <- band(Yh, type = "prediction", alpha = 0.1, iid = FALSE, id = id, B = 60)
 #'
-#' # Confidence band (i.i.d.)
-#' fitC <- band(Y, type = "confidence", alpha = 0.1, iid = TRUE, B = 200)
+#' # plot: gray raw curves, shaded band, black mean, colored cluster means
+#' xh    <- seq_len(fitH$meta$T)
+#' ylimH <- range(c(Yh, fitH$lower, fitH$upper), finite = TRUE)
+#' plot(xh, fitH$mean, type = "n", xlab = "Index", ylab = "Value",
+#'      ylim = ylimH, main = "Prediction band with clustered curves")
+#' matlines(xh, Yh, lty = 1, col = grDevices::adjustcolor("gray40", alpha.f = 0.4))
+#' polygon(c(xh, rev(xh)), c(fitH$lower, rev(fitH$upper)),
+#'         col = grDevices::adjustcolor("steelblue", alpha.f = 0.30), border = NA)
+#' lines(xh, fitH$mean,  lwd = 2)
+#' lines(xh, fitH$lower, lty = 2)
+#' lines(xh, fitH$upper, lty = 2)
+#' cl_cols <- c("firebrick", "darkgreen", "navy")
+#' for (k in seq_len(K)) {
+#'   cl_mean <- rowMeans(Yh[, id == k, drop = FALSE])
+#'   lines(xh, cl_mean, lwd = 2, col = cl_cols[k])
+#' }
+#' legend("topleft", bty = "n",
+#'        legend = paste("Cluster", seq_len(K)),
+#'        lwd = 2, col = cl_cols)
 #' }
 #'
 #' @importFrom stats quantile sd
