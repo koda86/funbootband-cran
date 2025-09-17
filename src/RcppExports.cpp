@@ -11,16 +11,16 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // prediction_max_dev_cpp
-NumericVector prediction_max_dev_cpp(const NumericMatrix resid_mat, const NumericVector mu_hat, const NumericVector sd_hat, const IntegerVector pick_idx);
-RcppExport SEXP _funbootband_prediction_max_dev_cpp(SEXP resid_matSEXP, SEXP mu_hatSEXP, SEXP sd_hatSEXP, SEXP pick_idxSEXP) {
+Rcpp::NumericVector prediction_max_dev_cpp(const Rcpp::NumericMatrix resid_mat, const Rcpp::NumericVector mu_hat, const Rcpp::NumericVector sd_hat, const Rcpp::IntegerMatrix idx_mat);
+RcppExport SEXP _funbootband_prediction_max_dev_cpp(SEXP resid_matSEXP, SEXP mu_hatSEXP, SEXP sd_hatSEXP, SEXP idx_matSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const NumericMatrix >::type resid_mat(resid_matSEXP);
-    Rcpp::traits::input_parameter< const NumericVector >::type mu_hat(mu_hatSEXP);
-    Rcpp::traits::input_parameter< const NumericVector >::type sd_hat(sd_hatSEXP);
-    Rcpp::traits::input_parameter< const IntegerVector >::type pick_idx(pick_idxSEXP);
-    rcpp_result_gen = Rcpp::wrap(prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, pick_idx));
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type resid_mat(resid_matSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type mu_hat(mu_hatSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type sd_hat(sd_hatSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerMatrix >::type idx_mat(idx_matSEXP);
+    rcpp_result_gen = Rcpp::wrap(prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, idx_mat));
     return rcpp_result_gen;
 END_RCPP
 }
