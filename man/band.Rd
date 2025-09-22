@@ -10,7 +10,8 @@ band(
   alpha = 0.05,
   iid = TRUE,
   id = NULL,
-  B = 1000L
+  B = 1000L,
+  k.coef = 50L
 )
 }
 \arguments{
