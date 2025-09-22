@@ -1,19 +1,207 @@
 ---
-title: "funbootband-intro"
+title: "funbootband: Simultaneous Bands for Functional Data"
+author: "Daniel Koska"
+date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{funbootband-intro}
+  %\VignetteIndexEntry{funbootband: Simultaneous Bands for Functional Data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse = TRUE, comment = "#>",
+  fig.width = 6, fig.height = 4,
+  message = FALSE, warning = FALSE
 )
+
+# CRAN sets NOT_CRAN = "false"; use tiny B there to keep run time short
+is_cran <- !identical(tolower(Sys.getenv("NOT_CRAN")), "true")
+B_demo  <- if (is_cran) 25L else 400L   # bootstrap reps
+K_demo  <- 12L                          # modest Fourier order for speed
+set.seed(1)
 ```
 
-```{r setup}
+# Overview
+
+`funbootband` computes **simultaneous prediction and confidence bands** for
+*dense* functional data (e.g., gait curves sampled on a common grid).
+It supports both i.i.d. and clustered (hierarchical) designs and uses a fast
+Rcpp backend. Curves are **preprocessed via a finite Fourier series**
+(`k.coef` harmonics) to honor smoothness and periodicity; the bootstrap then
+operates on the reconstructed grid.
+
+- **Prediction bands**: cover *future individual curves* with probability
+  \(1-\alpha\).
+- **Confidence bands**: cover the *mean function* with probability \(1-\alpha\).
+
+The main user function is:
+
+```r
+band(data, type = c("prediction","confidence"),
+     alpha = 0.05, iid = TRUE, id = NULL,
+     B = 1000L, k.coef = 50L)
+```
+
+# Quick start (i.i.d.)
+
+We simulate smooth, noisy curves on a common grid and compute a **prediction band**.
+
+```{r iid-sim}
 library(funbootband)
+
+T <- 80; n <- 10
+# Smooth signal + noise
+x <- seq(0, 1, length.out = T)
+signal <- 0.5 * sin(2*pi*x)
+Y <- sapply(seq_len(n), function(i) signal + rnorm(T, sd = 0.25))
+Y <- as.matrix(Y)
+
+fit_pred <- band(Y, type = "prediction",
+                 alpha = 0.10, iid = TRUE,
+                 B = B_demo, k.coef = K_demo)
+
+str(fit_pred$meta)
+```
+
+Plot the band (shaded), mean curve (thick line), and a few sample curves:
+
+```{r iid-plot, fig.cap="Prediction band (shaded), mean (black), sample curves (gray)."}
+idx <- seq_len(fit_pred$meta$T)
+ylim <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+
+plot(idx, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Index (time grid)", ylab = "Value",
+     main = "Prediction band (i.i.d.)")
+matlines(idx, Y, col = grDevices::adjustcolor("gray40", 0.35), lty = 1)
+polygon(c(idx, rev(idx)), c(fit_pred$lower, rev(fit_pred$upper)),
+        col = grDevices::adjustcolor("steelblue", 0.30), border = NA)
+lines(idx, fit_pred$mean, lwd = 2)
+```
+
+**Interpretation.** The shaded region is calibrated to contain *entire curves*
+with probability \(1-\alpha\) (simultaneous coverage).
+
+# Confidence band for the mean
+
+Using the same data, we now build a **confidence band** for the *mean function*.
+
+```{r conf}
+fit_conf <- band(Y, type = "confidence",
+                 alpha = 0.10, iid = TRUE,
+                 B = B_demo, k.coef = K_demo)
+
+plot(idx, fit_conf$mean, type = "n",
+     ylim = range(c(fit_conf$lower, fit_conf$upper), finite = TRUE),
+     xlab = "Index (time grid)", ylab = "Value",
+     main = "Confidence band for the mean (i.i.d.)")
+polygon(c(idx, rev(idx)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("darkorange", 0.25), border = NA)
+lines(idx, fit_conf$mean, lwd = 2)
+```
+
+**Interpretation.** The band covers the *true mean function* with probability
+\(1-\alpha\) (simultaneous in \(t\)).
+
+# Clustered (hierarchical) curves
+
+Suppose curves come from subjects (clusters) with subject-specific structure.
+We simulate two clusters and pass a cluster `id` vector.
+
+```{r clustered, eval=TRUE}
+set.seed(2)
+T  <- 80
+x  <- seq(0, 1, length.out = T)
+mu <- list(function(z) 0.7 * sin(2*pi*z),
+           function(z) 0.6 * cos(2*pi*z))
+m_per <- c(5, 5)                # 5 curves per cluster
+Kcl   <- length(m_per)
+
+gen_curve <- function(k) mu[[k]](x) + rnorm(T, sd = 0.12)
+
+Ylist <- lapply(seq_len(Kcl), function(k) sapply(seq_len(m_per[k]), \(i) gen_curve(k)))
+Yh    <- do.call(cbind, Ylist)
+id    <- rep(seq_len(Kcl), m_per)
+
+fit_h <- band(Yh, type = "prediction",
+              alpha = 0.10, iid = FALSE, id = id,
+              B = B_demo, k.coef = K_demo)
+
+idxh  <- seq_len(fit_h$meta$T)
+ylimh <- range(c(Yh, fit_h$lower, fit_h$upper), finite = TRUE)
+
+plot(idxh, fit_h$mean, type = "n", ylim = ylimh,
+     xlab = "Index (time grid)", ylab = "Value",
+     main = "Prediction band (clustered)")
+matlines(idxh, Yh, col = grDevices::adjustcolor("gray40", 0.35), lty = 1)
+polygon(c(idxh, rev(idxh)), c(fit_h$lower, rev(fit_h$upper)),
+        col = grDevices::adjustcolor("steelblue", 0.30), border = NA)
+lines(idxh, fit_h$mean, lwd = 2)
+```
+
+**Note.** When `iid = FALSE`, the bootstrap uses a **two-stage** scheme:
+sample clusters (with replacement), then choose curves within cluster
+(without replacement until exhausted, then with replacement), which respects
+within-cluster dependence.
+
+# Choosing `k.coef` (Fourier harmonics)
+
+`k.coef` controls the number of sine/cosine harmonics (plus intercept) used to
+represent each curve before bootstrapping.
+
+- Typical ranges for dense grids (e.g., \(T \approx 80\)–\(200\)):
+  `k.coef` in **10–20** often works well.
+- The code automatically **clamps** `k.coef` to the maximum meaningful value
+  on a length-`T` periodic grid; if you pass a larger value, it is reduced.
+- Larger `k.coef` fits higher-frequency detail; smaller values smooth more.
+
+For performance in examples/vignettes, we use a modest `k.coef` (here `12`).
+
+# Tuning `B` (bootstrap replicates)
+
+- For tutorials and CRAN builds, a **tiny** `B` (≈ 20–30) keeps run time short.
+- For real analysis, use a **larger** `B` (e.g., 1000–2000) for stable quantiles.
+- You can always rerun with higher `B` to refine the band.
+
+```{r heavier, eval = !is_cran}
+# Heavier demo (skipped on CRAN)
+set.seed(3)
+fit_pred_big <- band(Y, type = "prediction", alpha = 0.05,
+                     iid = TRUE, B = 1000L, k.coef = 15L)
+summary(fit_pred_big$meta)
+```
+
+# API reference (brief)
+
+```r
+band(data, type = c("prediction","confidence"),
+     alpha = 0.05,
+     iid   = TRUE,
+     id    = NULL,
+     B     = 1000L,
+     k.coef = 50L)
+```
+
+- **data**: numeric matrix `T × n` (rows: time points; cols: curves). A numeric
+  `data.frame` is accepted.
+- **type**: `"prediction"` (future curve coverage) or `"confidence"` (mean).
+- **alpha**: e.g., `0.05` gives 95% bands.
+- **iid** / **id**: set `iid = FALSE` and supply `id` (length `n`) for clusters,
+  or allow inference from column-name prefixes.
+- **B**: bootstrap reps (increase for final results).
+- **k.coef**: Fourier harmonics (default `50`; clamped to a grid-specific max).
+
+**Return value.** A list with numeric vectors `lower`, `mean`, `upper` (length `T`)
+and `meta` (settings, `n`, `T`, etc.).
+
+# Reproducibility
+
+Set a seed before calls (as done above). All examples here set small `B` to keep
+the vignette fast; expect tighter bands as you increase `B` in your analyses.
+
+# Session info
+
+```{r session-info}
+sessionInfo()
 ```
