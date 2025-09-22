@@ -75,7 +75,6 @@
 #'        lwd = 2, col = cl_cols)
 #' }
 #'
-#' @importFrom stats quantile sd
 #' @export
 band <- function(data,
                  type  = c("prediction","confidence"),
