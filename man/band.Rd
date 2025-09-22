@@ -31,6 +31,11 @@ are inferred from column names by prefix (up to the first underscore, hyphen, or
 
 \item{B}{Integer, number of bootstrap iterations (e.g., 1000 for final results;
 use smaller values in examples/tests).}
+
+\item{k.coef}{Integer; number of Fourier harmonics (default 50).
+Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
+length \code{T}. Larger values fit more high-frequency detail; smaller
+values smooth more.}
 }
 \value{
 A list with elements \code{lower}, \code{mean}, \code{upper} (each of length T) and \code{meta}

@@ -15,6 +15,10 @@
 #'   are inferred from column names by prefix (up to the first underscore, hyphen, or dot).
 #' @param B Integer, number of bootstrap iterations (e.g., 1000 for final results;
 #'   use smaller values in examples/tests).
+#' @param k.coef Integer; number of Fourier harmonics (default 50).
+#'   Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
+#'   length \code{T}. Larger values fit more high-frequency detail; smaller
+#'   values smooth more.
 #'
 #' @return A list with elements `lower`, `mean`, `upper` (each of length T) and `meta`
 #'   (a list with settings such as type, alpha, iid, B, n, T).
