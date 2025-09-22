@@ -82,7 +82,8 @@ band <- function(data,
                  alpha = 0.05,
                  iid   = TRUE,
                  id    = NULL,
-                 B     = 1000L) {
+                 B     = 1000L,
+                 k.coef = 50L) {
 
   type  <- match.arg(type)
   alpha <- as.numeric(alpha)
@@ -113,6 +114,19 @@ band <- function(data,
   } else {
     id <- NULL
   }
+
+  # ---- Fourier preprocessing (Lenhoff-style) ----
+  k.coef <- as.integer(k.coef)
+  if (k.coef < 0L) stop("`k.coef` must be nonnegative.")
+  # practical ceiling for periodic Fourier basis
+  maxK <- floor((Tlen - 1L) / 2L)
+  if (k.coef > maxK) {
+    warning("`k.coef` = ", k.coef, " exceeds maximum ", maxK,
+            " for T = ", Tlen, ". Using ", maxK, " instead.")
+    k.coef <- maxK
+  }
+  fit <- fit_fourier(data, K = k.coef)
+  data <- fit$fitted   # replace raw with Fourier-reconstructed curves
 
   # ---- Basic estimates ----
   mu_hat <- rowMeans(data)                      # mean curve, length T
@@ -147,6 +161,35 @@ band <- function(data,
 }
 
 # ----- internal helpers (do not export) -----
+
+# Finite Fourier design, T x (2K+1)
+fourier_design <- function(Tlen, K) {
+  stopifnot(Tlen >= 2L, K >= 0L)
+  t_idx <- 0:(Tlen - 1L)
+  denom <- (Tlen - 1L)   # Lenhoff: '-1' for periodic closure
+  X <- cbind(1, matrix(NA_real_, nrow = Tlen, ncol = 2L * K))
+  col <- 2L
+  if (K > 0L) {
+    for (k in seq_len(K)) {
+      X[, col] <- cos(2 * pi * k * t_idx / denom); col <- col + 1L
+      X[, col] <- sin(2 * pi * k * t_idx / denom); col <- col + 1L
+    }
+  }
+  X
+}
+
+# Fit Fourier series for all curves
+fit_fourier <- function(data, K) {
+  if (is.data.frame(data)) data <- as.matrix(data)
+  stopifnot(is.matrix(data), is.numeric(data))
+  Tlen <- nrow(data)
+  X <- fourier_design(Tlen, K)
+  qrX <- qr(X)                         # stable LS
+  coef_mat <- qr.coef(qrX, data)       # (2K+1) x n
+  if (is.null(dim(coef_mat))) coef_mat <- matrix(coef_mat, ncol = 1L)
+  fitted <- X %*% coef_mat             # T x n
+  list(X = X, coef = coef_mat, fitted = fitted)
+}
 
 # One curve per column draw, but clusters first (Stage 1), then curve within cluster (Stage 2)
 # B x n matrix for bootstrap means (confidence) *and* prediction
