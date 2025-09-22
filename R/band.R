@@ -20,60 +20,45 @@
 #'   (a list with settings such as type, alpha, iid, B, n, T).
 #'
 #' @examples
-#' \donttest{
-#' ## i.i.d. example with shaded band
+#' ## i.i.d. example (small, fast) with shaded band
 #' set.seed(1)
-#' T <- 40; n <- 12
-#' Y <- matrix(rnorm(T * n, sd = 0.3), nrow = T, ncol = n)
-#' fit <- band(Y, type = "prediction", alpha = 0.1, iid = TRUE, B = 50)
+#' T <- 60; n <- 8
+#' Y <- matrix(rnorm(T * n, sd = 0.25), nrow = T, ncol = n) +
+#'      outer(seq_len(T), rep(1, n), function(i, j) 0.5 * sin(2*pi*i/T))
+#' fit <- band(Y, type = "prediction", alpha = 0.1, iid = TRUE, B = 25L, k.coef = 12L)
 #' x <- seq_len(fit$meta$T)
-#' plot(x, fit$mean, type = "n", ylim = range(c(fit$lower, fit$upper)),
-#'      xlab = "Index", ylab = "Value", main = "Prediction band")
+#' plot(x, fit$mean, type = "n",
+#'      ylim = range(c(fit$lower, fit$upper)), xlab = "Index", ylab = "Value")
 #' polygon(c(x, rev(x)), c(fit$lower, rev(fit$upper)),
 #'         col = grDevices::adjustcolor("steelblue", alpha.f = 0.3), border = NA)
 #' lines(x, fit$mean, lwd = 2)
-#' lines(x, fit$lower, lty = 2)
-#' lines(x, fit$upper, lty = 2)
 #'
-#' ## hierarchical example with clustered curves
+#' ## clustered example (also kept small and fast)
+#' \donttest{
 #' set.seed(2)
-#' T  <- 100; m <- c(8, 7, 6); K <- length(m)
+#' T  <- 80; m <- c(4, 4)                 # two clusters, few curves
 #' t  <- seq(0, 1, length.out = T)
-#' mu <- list(
-#'   function(x) 0.8 * sin(2*pi*x) + 0.2,
-#'   function(x) 0.5 * cos(2*pi*x) - 0.1,
-#'   function(x) 0.6 * sin(4*pi*x)
-#' )
-#' Bm <- cbind(sin(2*pi*t), cos(2*pi*t), sin(4*pi*t))
+#' mu <- list(function(x) 0.7 * sin(2*pi*x),
+#'            function(x) 0.6 * cos(2*pi*x))
+#' Bm <- cbind(sin(2*pi*t), cos(2*pi*t))
 #' gen_curve <- function(k) {
-#'   sc <- rnorm(ncol(Bm), sd = c(0.25, 0.18, 0.12))
-#'   mu[[k]](t) + as.vector(Bm %*% sc) + rnorm(T, sd = 0.15)
+#'   sc <- rnorm(ncol(Bm), sd = c(0.2, 0.15))
+#'   mu[[k]](t) + as.vector(Bm %*% sc) + rnorm(T, sd = 0.12)
 #' }
-#' Ylist <- lapply(seq_len(K), function(k) sapply(seq_len(m[k]), function(i) gen_curve(k)))
+#' Ylist <- lapply(seq_along(m), function(k) sapply(seq_len(m[k]), function(i) gen_curve(k)))
 #' Yh    <- do.call(cbind, Ylist)
-#' id    <- rep(seq_len(K), times = m)
-#' fitH  <- band(Yh, type = "prediction", alpha = 0.1, iid = FALSE, id = id, B = 1000)
-#'
-#' # plot: gray raw curves, shaded band, black mean, colored cluster means
-#' xh    <- seq_len(fitH$meta$T)
-#' ylimH <- range(c(Yh, fitH$lower, fitH$upper), finite = TRUE)
-#' plot(xh, fitH$mean, type = "n", xlab = "Index", ylab = "Value",
-#'      ylim = ylimH, main = "Prediction band with clustered curves")
-#' matlines(xh, Yh, lty = 1, col = grDevices::adjustcolor("gray40", alpha.f = 0.4))
+#' id    <- rep(seq_along(m), times = m)
+#' fitH  <- band(Yh, type = "prediction", alpha = 0.1,
+#'               iid = FALSE, id = id, B = 25L, k.coef = 12L)
+#' xh <- seq_len(fitH$meta$T)
+#' plot(xh, fitH$mean, type = "n",
+#'      ylim = range(c(Yh, fitH$lower, fitH$upper), finite = TRUE),
+#'      xlab = "Index", ylab = "Value")
 #' polygon(c(xh, rev(xh)), c(fitH$lower, rev(fitH$upper)),
 #'         col = grDevices::adjustcolor("steelblue", alpha.f = 0.30), border = NA)
 #' lines(xh, fitH$mean,  lwd = 2)
-#' lines(xh, fitH$lower, lty = 2)
-#' lines(xh, fitH$upper, lty = 2)
-#' cl_cols <- c("firebrick", "darkgreen", "navy")
-#' for (k in seq_len(K)) {
-#'   cl_mean <- rowMeans(Yh[, id == k, drop = FALSE])
-#'   lines(xh, cl_mean, lwd = 2, col = cl_cols[k])
 #' }
-#' legend("topleft", bty = "n",
-#'        legend = paste("Cluster", seq_len(K)),
-#'        lwd = 2, col = cl_cols)
-#' }
+
 #'
 #' @export
 band <- function(data,
