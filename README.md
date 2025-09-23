@@ -11,6 +11,13 @@ It supports i.i.d. and **clustered** (hierarchical) designs, uses a **finite Fou
 
 ## Installation
 
+
+The stable release is available on CRAN:
+
+```r
+install.packages("funbootband")
+```
+
 You can install the development version of funbootband from [GitHub](https://github.com/) with:
 
 ``` r
