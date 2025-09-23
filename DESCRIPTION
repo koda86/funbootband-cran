@@ -1,6 +1,6 @@
 Package: funbootband
 Title: Simultaneous Prediction and Confidence Bands for Functional Data
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: 
     person("Daniel", "Koska", 
            email = "dkoska@proton.me", 

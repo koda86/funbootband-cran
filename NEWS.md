@@ -1,3 +1,5 @@
+# funbootband 0.2.0
+
 # funbootband 0.1.1 (2025-09-22)
 
 - Add Fourier preprocessing in `band()` via `k.coef` (default 50) to honor smooth/periodic structure.
