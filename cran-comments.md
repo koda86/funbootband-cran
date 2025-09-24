@@ -6,13 +6,10 @@
 
 ## R CMD check results
 
-0 errors | 0 warnings | 4 notes
+0 errors | 0 warnings | 3 notes
 
 * **New submission**
   - This is the first CRAN release of the package.
-
-* **Future file timestamps**
-  - NOTE: “unable to verify current time” occurred on the local machine. This is an artifact of the local build environment and is not expected on CRAN systems.
 
 * **Compilation flags**
   - NOTE: “Compilation used the following non-portable flag(s): ‘-mno-omit-leaf-frame-pointer’”.
@@ -31,3 +28,4 @@
 ## Downstream dependencies
 
 * This is an initial submission; there are no reverse dependencies yet.
+
