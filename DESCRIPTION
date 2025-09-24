@@ -4,7 +4,7 @@ Version: 0.2.0
 Authors@R: 
     person("Daniel", "Koska", 
            email = "dkoska@proton.me", 
-           role = c("aut", "cre"), 
+           role = c("aut", "cre", "cph"), 
            comment = c(ORCID = "0000-0002-8245-5222"))
 Description: Provides methods to compute simultaneous (functional) prediction and confidence bands 
     for (dense) time series data. Supports both independent and hierarchical (clustered) 
