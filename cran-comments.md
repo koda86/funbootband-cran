@@ -3,6 +3,9 @@
 * Local: Ubuntu 24.04.2 LTS, R 4.5.1 (x86_64), GCC 13.3.0
 * No external services; no network access required.
 * Examples and vignette use small `B` on CRAN to keep run time short.
+* win-builder (Windows Server 2022):
+  - R-release: 0 errors, 0 warnings, 1 note (“New submission”)
+  - R-devel:   0 errors, 0 warnings, 1 note (“New submission”)
 
 ## R CMD check results
 
