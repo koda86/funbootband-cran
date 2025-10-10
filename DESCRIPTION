@@ -1,15 +1,18 @@
 Package: funbootband
-Title: Simultaneous Prediction and Confidence Bands for Functional Data
+Title: Simultaneous Prediction and Confidence Bands for Time Series Data
 Version: 0.2.0
 Authors@R: 
     person("Daniel", "Koska", 
            email = "dkoska@proton.me", 
            role = c("aut", "cre", "cph"), 
            comment = c(ORCID = "0000-0002-8245-5222"))
-Description: Provides methods to compute simultaneous (functional) prediction and confidence bands 
-    for dense time series data. Supports both independent and hierarchical (clustered) 
-    designs using deterministic bootstrap resampling. Includes a simple API (see the `band()` function) 
-    and an 'Rcpp' backend for performance.
+Description: Provides methods to compute simultaneous prediction and confidence
+    bands for dense time series data. The implementation builds on the
+    functional bootstrap approach proposed by Lenhoff et al. (1999)
+    <doi:10.1016/S0966-6362(98)00043-5> and extended by Koska et al. (2023)
+    <doi:10.1016/j.jbiomech.2023.111506> to support both independent and
+    clustered (hierarchical) data. Includes a simple API (see band()) and an
+    'Rcpp' backend for performance.
 License: GPL-3
 URL: https://github.com/koda86/funbootband-cran
 BugReports: https://github.com/koda86/funbootband-cran/issues
@@ -24,4 +27,3 @@ RoxygenNote: 7.3.3
 SystemRequirements: C++17
 Config/testthat/edition: 3
 ByteCompile: true
-
