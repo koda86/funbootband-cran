@@ -4,3 +4,6 @@
 ^cran-comments\.md$
 ^\.github$
 ^CRAN-SUBMISSION$
+
+^scripts$
+^man/figures/README.*\.png$
