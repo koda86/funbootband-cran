@@ -23,9 +23,7 @@
 #' @return A list with elements `lower`, `mean`, `upper` (each of length T) and `meta`
 #'   (a list with settings such as type, alpha, iid, B, n, T).
 #'
-#' @examples
 #' @example inst/examples/iid_example.R
-#' @examples
 #' @example inst/examples/clustered_example.R
 #'
 #' @references
