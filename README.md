@@ -49,8 +49,8 @@ Z  <- matrix(rnorm(T * n), T, n)
 Y  <- mu + ev$vectors %*% (sqrt(pmax(ev$values, 0)) * Z)
 Y  <- Y + matrix(rnorm(T * n, sd = 0.2), T, n)
 
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = 200L, k.coef = 20L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = 200L, k.coef = 20L)
+fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
 ```
 
 ![Simultaneous prediction and confidence bands (i.i.d.)](man/figures/README_iid_plot.png)
@@ -90,8 +90,8 @@ colnames(Y) <- unlist(mapply(
   seq_along(m), m
 ))
 
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = 200L, k.coef = 20L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = 200L, k.coef = 20L)
+fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
 ```
 
 ![Simultaneous prediction and confidence bands (clustered)](man/figures/README_clustered_plot.png)
