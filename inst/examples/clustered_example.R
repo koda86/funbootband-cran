@@ -1,3 +1,5 @@
+## clustered (hierarchical) example
+
 set.seed(2)
 T <- 200
 m <- c(5, 5)

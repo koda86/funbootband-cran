@@ -1,3 +1,5 @@
+## i.i.d. example
+
 set.seed(1)
 T <- 200
 n <- 10
