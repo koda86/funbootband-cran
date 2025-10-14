@@ -47,43 +47,89 @@ Create simultaneous bootstrap bands for dense functional data
 via a simple cluster bootstrap when \code{iid = FALSE}.
 }
 \examples{
-## i.i.d. example (small, fast) with shaded band
+## i.i.d. example
+
 set.seed(1)
-n_time <- 60; n <- 8
-Y <- matrix(rnorm(n_time * n, sd = 0.25), nrow = n_time, ncol = n) +
-     outer(seq_len(n_time), rep(1, n), function(i, j) 0.5 * sin(2*pi*i/n_time))
-fit <- band(Y, type = "prediction", alpha = 0.1, iid = TRUE, B = 25L, k.coef = 12L)
-x <- seq_len(fit$meta$T)
-plot(x, fit$mean, type = "n",
-     ylim = range(c(fit$lower, fit$upper)), xlab = "Index", ylab = "Value")
-polygon(c(x, rev(x)), c(fit$lower, rev(fit$upper)),
-        col = grDevices::adjustcolor("steelblue", alpha.f = 0.3), border = NA)
-lines(x, fit$mean, lwd = 2)
+T <- 200
+n <- 10
+x <- seq(0, 1, length.out = T)
 
-## clustered example (also kept small and fast)
+# Simulate smooth Gaussian-process-like curves of equal length
+mu  <- 10 * sin(2 * pi * x)
+ell <- 0.12; sig <- 3
+Kmat <- outer(x, x, function(s, t) sig^2 * exp(-(s - t)^2 / (2 * ell^2)))
+ev <- eigen(Kmat + 1e-8 * diag(T), symmetric = TRUE)
+Z  <- matrix(rnorm(T * n), T, n)
+Y  <- mu + ev$vectors \%*\% (sqrt(pmax(ev$values, 0)) * Z)
+Y  <- Y + matrix(rnorm(T * n, sd = 0.2), T, n) # observation noise
+
+# Fit prediction and confidence bands
+fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
+
+# Plot the results
+x_idx <- seq_len(fit_pred$meta$T)
+ylim  <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+
+plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Index (Time)", ylab = "Amplitude",
+     main = "Simultaneous bands (i.i.d.)")
+
+matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
+polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
+        col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
+polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
+lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
+
+## clustered (hierarchical) example
+
 set.seed(2)
-n_time  <- 80; m <- c(4, 4)                 # two clusters, few curves
-t  <- seq(0, 1, length.out = n_time)
-mu <- list(function(x) 0.7 * sin(2*pi*x),
-           function(x) 0.6 * cos(2*pi*x))
-Bm <- cbind(sin(2*pi*t), cos(2*pi*t))
-gen_curve <- function(k) {
-  sc <- rnorm(ncol(Bm), sd = c(0.2, 0.15))
-  mu[[k]](t) + as.vector(Bm \%*\% sc) + rnorm(n_time, sd = 0.12)
-}
-Ylist <- lapply(seq_along(m), function(k) sapply(seq_len(m[k]), function(i) gen_curve(k)))
-Yh    <- do.call(cbind, Ylist)
-id    <- rep(seq_along(m), times = m)
-fitH  <- band(Yh, type = "prediction", alpha = 0.1,
-              iid = FALSE, id = id, B = 25L, k.coef = 12L)
-xh <- seq_len(fitH$meta$T)
-plot(xh, fitH$mean, type = "n",
-     ylim = range(c(Yh, fitH$lower, fitH$upper), finite = TRUE),
-     xlab = "Index", ylab = "Value")
-polygon(c(xh, rev(xh)), c(fitH$lower, rev(fitH$upper)),
-        col = grDevices::adjustcolor("steelblue", alpha.f = 0.30), border = NA)
-lines(xh, fitH$mean,  lwd = 2)
+T <- 200
+m <- c(5, 5)
+x <- seq(0, 1, length.out = T)
 
+# Cluster-specific means
+mu <- list(
+  function(z) 8 * sin(2 * pi * z),
+  function(z) 8 * cos(2 * pi * z)
+)
+
+# Generate curves with smooth within-cluster variation
+Bm <- cbind(sin(2 * pi * x), cos(2 * pi * x))
+gen_curve <- function(k) {
+  sc <- rnorm(ncol(Bm), sd = c(2.0, 1.5))
+  mu[[k]](x) + as.vector(Bm \%*\% sc)
+}
+
+Ylist <- lapply(seq_along(m), function(k) {
+  sapply(seq_len(m[k]), function(i) gen_curve(k) + rnorm(T, sd = 0.6))
+})
+Y <- do.call(cbind, Ylist)
+colnames(Y) <- unlist(mapply(
+  function(k, mk) paste0("C", k, "_", seq_len(mk)),
+  seq_along(m), m
+))
+
+
+# Fit prediction and confidence bands
+fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
+
+# Plot the results
+x_idx <- seq_len(fit_pred$meta$T)
+ylim   <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+
+plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Index (Time)", ylab = "Amplitude",
+     main = "Simultaneous bands (clustered)")
+
+matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
+polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
+        col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
+polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
+lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
 }
 \references{
 Koska, D., Oriwol, D., & Maiwald, C. (2023).

@@ -9,18 +9,21 @@
 
 ## R CMD check results
 
-0 errors | 0 warnings | 3 notes
+0 errors | 0 warnings | 2 notes
 
-* **New submission**
-  - This is the first CRAN release of the package.
+* **Future file timestamps**  
+  “unable to verify current time” — this is a known benign NOTE on some systems/containers and is not package-specific.
 
-* **Compilation flags**
-  - NOTE: “Compilation used the following non-portable flag(s): ‘-mno-omit-leaf-frame-pointer’”.
-  - This flag is injected by Ubuntu’s system-wide `Makeconf` and is **not** set in the package sources (no `src/Makevars*`). CRAN’s build machines will not inherit these local flags.
+* **Compilation flags**  
+  “Compilation used the following non-portable flag(s): ‘-mno-omit-leaf-frame-pointer’.”  
+  This flag is injected by Ubuntu’s system `Makeconf`; it is **not** set in the package sources (no `src/Makevars*`).  
+  CRAN’s build machines will not inherit these local flags.
 
-* **HTML manual checks**
-  - NOTE: Local environment lacks `tidy` and `V8`, so HTML validation and math rendering checks were skipped.
-  - CRAN machines provide these tools; this NOTE is local-only.
+* **win-builder**: see above (only “New submission” NOTE).
+
+## Submission type
+
+**New submission** — this is the first CRAN release of the package.
 
 ## Additional package notes
 

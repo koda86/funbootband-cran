@@ -7,3 +7,5 @@
 
 ^scripts$
 ^man/figures/README.*\.png$
+^doc$
+^Meta$
