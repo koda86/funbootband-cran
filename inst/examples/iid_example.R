@@ -1,35 +1,34 @@
-## i.i.d. example
+## Independent-curve example
 
 set.seed(1)
-T <- 200
-n <- 10
+T <- 101L
+n <- 30L
 x <- seq(0, 1, length.out = T)
+mu_true <- 0.7 * sin(2 * pi * x) - 0.2 * cos(4 * pi * x)
 
-# Simulate smooth Gaussian-process-like curves of equal length
-mu  <- 10 * sin(2 * pi * x)
-ell <- 0.12; sig <- 3
-Kmat <- outer(x, x, function(s, t) sig^2 * exp(-(s - t)^2 / (2 * ell^2)))
-ev <- eigen(Kmat + 1e-8 * diag(T), symmetric = TRUE)
-Z  <- matrix(rnorm(T * n), T, n)
-Y  <- mu + ev$vectors %*% (sqrt(pmax(ev$values, 0)) * Z)
-Y  <- Y + matrix(rnorm(T * n, sd = 0.2), T, n) # observation noise
+generate_curve <- function() {
+  mu_true +
+    rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x) +
+    rnorm(1, sd = 0.15) * sin(4 * pi * x)
+}
 
-# Fit prediction and confidence bands
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
+Y <- replicate(n, generate_curve())
 
-# Plot the results
-x_idx <- seq_len(fit_pred$meta$T)
-ylim  <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+fit_pred <- band(Y, type = "prediction", alpha = 0.10,
+                 iid = TRUE, B = 500L, k.coef = 4L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.10,
+                 iid = TRUE, B = 500L, k.coef = 4L)
 
-plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
-     xlab = "Index (Time)", ylab = "Amplitude",
+ylim <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+plot(x, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Normalized time", ylab = "Value",
      main = "Simultaneous bands (i.i.d.)")
-
-matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
-polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
-        col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
-polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
-        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
-lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
-
+matlines(x, Y, col = grDevices::adjustcolor("gray40", 0.25), lty = 1)
+polygon(c(x, rev(x)), c(fit_pred$lower, rev(fit_pred$upper)),
+        col = grDevices::adjustcolor("steelblue", 0.25), border = NA)
+polygon(c(x, rev(x)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("darkorange", 0.30), border = NA)
+lines(x, fit_pred$mean, lwd = 2)
+lines(x, mu_true, col = "red", lwd = 2, lty = 2)

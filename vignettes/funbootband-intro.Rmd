@@ -1,10 +1,10 @@
 ---
-title: "funbootband: Simultaneous Prediction and Confidence Bands for Time Series Data"
+title: "funbootband: Simultaneous Prediction and Confidence Bands for Functional Data"
 author: "Daniel Koska"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{funbootband: Simultaneous Prediction and Confidence Bands for Time Series Data}
+  %\VignetteIndexEntry{funbootband: Simultaneous Prediction and Confidence Bands for Functional Data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,8 +18,8 @@ knitr::opts_chunk$set(
 
 # Keep the vignette fast on CRAN by using tiny B
 is_cran <- !identical(tolower(Sys.getenv("NOT_CRAN")), "true")
-B_demo  <- if (is_cran) 25L else 1000L # bootstrap reps
-k.coef_demo <- 50L
+B_demo  <- if (is_cran) 25L else 500L # bootstrap reps
+k.coef_demo <- 4L
 
 set.seed(1)
 ```
@@ -27,7 +27,7 @@ set.seed(1)
 ## Overview
 
 `funbootband` computes **simultaneous** prediction and confidence bands for
-dense time series data on a common grid.
+dense functional data observed on a common grid.
 It supports both i.i.d. and clustered (hierarchical) designs and uses a fast
 'Rcpp' backend.
 
@@ -35,8 +35,9 @@ Curves are **preprocessed via finite Fourier series**
 (`k.coef` harmonics) and **bootstrapped** to generate empirical distributions, from
 which band limits are obtained as quantiles.
 
-- **Prediction bands**: cover *future individual curves* with probability
-  \(1-\alpha\).
+- **Prediction bands**: target simultaneous coverage of one *future individual
+  curve*. In the clustered analysis this is specifically one curve from a new
+  subject drawn from the subject population.
 - **Confidence bands**: cover the *mean function* with probability \(1-\alpha\).
 
 The main user function is:
@@ -47,32 +48,69 @@ band(data, type = c("prediction","confidence"),
      B = 1000L, k.coef = 50L)
 ```
 
-This document gives a quick tour of `funbootband` including examples with simulated data for both i.i.d. and hierarchical scenarios. The functional bootstrap method implemented in the package is an implementation of the algorithm described in Lenhoff et al. (1999) and further developed for hierarchical design in Koska et al. (2023). The vignette contains additional advice for choosing function arguments in `band()`.
+This document gives a quick tour of `funbootband`, including simulated i.i.d.
+and hierarchical examples. The i.i.d. calibration builds on Lenhoff et al.
+(1999). Koska et al. (2023) motivated the hierarchical setting, but the
+clustered implementation in version 0.3.0 is deliberately revised: it resamples
+whole subjects and defines a specific new-subject/new-curve prediction target.
 
-The vignette was written in R Markdown, using 'knitr'.
+### Statistical targets
+
+For independent curves $Y_i(t)$, the prediction band targets one independent
+future curve. A confidence band instead targets the population mean function.
+
+For clustered data, let $Y_{ij}(t)$ denote repeat $j=1,\ldots,m_i$ from subject
+$i=1,\ldots,K$. The default clustered prediction target is
+
+\[
+Y_{\mathrm{new}}(t) = \mu(t) + A_{\mathrm{new}}(t) + E_{\mathrm{new}}(t),
+\]
+
+that is, one curve from an independent new subject. Subjects are sampled with
+equal probability and curves are sampled equally within subject. The empirical
+weight of curve $(i,j)$ is therefore
+
+\[
+q_{ij}=\frac{1}{K m_i},
+\]
+
+and the fitted centre is the equally subject-weighted mean
+
+\[
+\widehat\mu(t)=\frac{1}{K}\sum_{i=1}^K
+                 \frac{1}{m_i}\sum_{j=1}^{m_i}Y_{ij}(t).
+\]
+
+In bootstrap replicate $b$, $K$ subjects are sampled with replacement. If
+subject $i$ is selected $c_{bi}$ times, all of its curves are retained with
+weight $c_{bi}/(K m_i)$. Prediction calibration keeps one supremum statistic
+per possible future curve; it does not maximize jointly over the complete
+observed sample.
 
 ### Quick start (i.i.d.)
 
 When curves are independent and identically distributed, the function argument `iid` in `band()` should be set to `TRUE`. 
 
-For this example, consider a set of simulated smooth curves from a Gaussian process on a common grid (it is generally assumed that all curves are of equal length and reasonably smooth).
+For this example, consider smooth periodic curves on a common grid.
 
 ```{r iid-sim}
 library(funbootband)
 
 set.seed(1)
-T <- 200
-n <- 10
+T <- 101L
+n <- 30L
 x <- seq(0, 1, length.out = T)
+mu_true <- 0.7 * sin(2 * pi * x) - 0.2 * cos(4 * pi * x)
 
-# Simulate smooth Gaussian-process-like curves of equal length
-mu  <- 10 * sin(2 * pi * x)
-ell <- 0.12; sig <- 3
-Kmat <- outer(x, x, function(s, t) sig^2 * exp(-(s - t)^2 / (2 * ell^2)))
-ev <- eigen(Kmat + 1e-8 * diag(T), symmetric = TRUE)
-Z  <- matrix(rnorm(T * n), T, n)
-Y  <- mu + ev$vectors %*% (sqrt(pmax(ev$values, 0)) * Z)
-Y  <- Y + matrix(rnorm(T * n, sd = 0.2), T, n) # observation noise
+generate_iid_curve <- function() {
+  mu_true +
+    rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x) +
+    rnorm(1, sd = 0.15) * sin(4 * pi * x)
+}
+
+Y <- replicate(n, generate_iid_curve())
 ```
 
 Simultaneous prediction and confidence bands are then computed by setting the `type` argument to
@@ -80,26 +118,28 @@ either `prediction` or `confidence`:
 
 ```{r iid-sim-plot}
 # Fit prediction and confidence bands
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = B_demo, k.coef = k.coef_demo)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = B_demo, k.coef = k.coef_demo)
+fit_pred <- band(Y, type = "prediction", alpha = 0.10,
+                 iid = TRUE, B = B_demo, k.coef = k.coef_demo)
+fit_conf <- band(Y, type = "confidence", alpha = 0.10,
+                 iid = TRUE, B = B_demo, k.coef = k.coef_demo)
 ```
 
 When plotting the bands alongside the original curves, we see that the shaded region is calibrated to contain *entire curves* with probability \(1-\alpha\) (simultaneous coverage).
 
 ```{r iid-plot, fig.cap="Calculated prediction (blue) and confidence (gray) bands."}
-x_idx <- seq_len(fit_pred$meta$T)
 ylim  <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
 
-plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
-     xlab = "Index (Time)", ylab = "Amplitude",
+plot(x, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Normalized time", ylab = "Value",
      main = "Simultaneous bands (i.i.d.)")
 
-matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
-polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
+matlines(x, Y, col = grDevices::adjustcolor("gray40", 0.25), lty = 1)
+polygon(c(x, rev(x)), c(fit_pred$lower, rev(fit_pred$upper)),
         col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
-polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
-        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
-lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
+polygon(c(x, rev(x)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("darkorange", alpha.f = 0.30), border = NA)
+lines(x, fit_pred$mean, lwd = 2)
+lines(x, mu_true, col = "red", lwd = 2, lty = 2)
 ```
 
 
@@ -111,64 +151,110 @@ automatically detect the cluster structure from the column names. Optionally, an
 integer/factor vector of length `ncol(data)` giving a cluster id for each curve
 can be used.
 
-The clustered case is illustrated using a design, where each group (cluster)
-follows its own mean pattern with smooth within-cluster variation.
+The clustered case is illustrated using a design where each subject contributes
+repeated curves. The estimand first samples a subject uniformly from the subject
+population and then samples one curve from that subject. Consequently, subjects
+receive equal weight even when they contribute different numbers of curves.
 
 ```{r clustered, eval=TRUE}
 library(funbootband)
 
 set.seed(2)
-T <- 200
-m <- c(5, 5)
-x <- seq(0, 1, length.out = T)
+K_subject <- 12L
+m <- rep(c(2L, 3L, 4L), length.out = K_subject)
+id <- rep(seq_len(K_subject), m)
 
-# Cluster-specific means
-mu <- list(
-  function(z) 8 * sin(2 * pi * z),
-  function(z) 8 * cos(2 * pi * z)
-)
+subject_effect <- sapply(seq_len(K_subject), function(i) {
+  rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x)
+})
 
-# Generate curves with smooth within-cluster variation
-Bm <- cbind(sin(2 * pi * x), cos(2 * pi * x))
-gen_curve <- function(k) {
-  sc <- rnorm(ncol(Bm), sd = c(2.0, 1.5))
-  mu[[k]](x) + as.vector(Bm %*% sc)
+within_subject_effect <- function() {
+  rnorm(1, sd = 0.18) * sin(4 * pi * x) +
+    rnorm(1, sd = 0.12) * cos(4 * pi * x)
 }
 
-Ylist <- lapply(seq_along(m), function(k) {
-  sapply(seq_len(m[k]), function(i) gen_curve(k) + rnorm(T, sd = 0.6))
+Y <- sapply(seq_along(id), function(j) {
+  mu_true + subject_effect[, id[j]] + within_subject_effect()
 })
-Y <- do.call(cbind, Ylist)
-colnames(Y) <- unlist(mapply(
-  function(k, mk) paste0("C", k, "_", seq_len(mk)),
-  seq_along(m), m
-))
+
+trial <- ave(id, id, FUN = seq_along)
+colnames(Y) <- paste0("subject", id, "_trial", trial)
 
 
 # Fit prediction and confidence bands
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = B_demo, k.coef = k.coef_demo)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = B_demo, k.coef = k.coef_demo)
+fit_pred <- band(Y, type = "prediction", alpha = 0.10, iid = FALSE,
+                 id = id, B = B_demo, k.coef = k.coef_demo)
+fit_conf <- band(Y, type = "confidence", alpha = 0.10, iid = FALSE,
+                 id = id, B = B_demo, k.coef = k.coef_demo)
 ```
 
-**Note:** When `iid = FALSE`, the bootstrap uses a **two-stage** scheme:
-sample clusters (with replacement), then choose curves within cluster
-(without replacement until exhausted, then with replacement), which respects
-within-cluster dependence.
+**Important:** When `iid = FALSE`, the bootstrap samples subjects with
+replacement and carries **all observed curves of each selected subject intact**.
+There is no second-stage resampling of individual curves in this revision. If a
+subject is selected more than once, its entire set of curves is copied more than
+once. The fitted mean is the equally weighted average of subject-specific mean
+curves, and prediction is calibrated for one curve from a new subject using
+equal-subject, equal-within-subject empirical weights.
+
+The prediction target and resampling unit are recorded explicitly:
+
+```{r clustered-meta}
+fit_pred$meta[c("target", "weighting", "bootstrap_unit", "n_clusters")]
+```
+
+This interpretation assumes that subjects are independent draws from the
+population and that the observed repeats are exchangeable representatives of a
+curve from their subject. It is a **marginal population prediction band**: it
+does not condition on data already observed for a particular subject and does
+not promise joint coverage of several future curves. At least two subjects and
+some within-subject replication are required; reliable tail calibration will
+usually require substantially more than the formal minimum.
+
+Finally, the target inherits the preprocessing step: it is a new curve in the
+same finite-Fourier representation used to reconstruct the observed curves.
+Coverage of raw high-frequency measurement noise is not automatically implied
+when that variation is removed by the chosen `k.coef`.
 
 ```{r clustered-plot}
-x_idx <- seq_len(fit_pred$meta$T)
 ylim   <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
 
-plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
-     xlab = "Index (Time)", ylab = "Amplitude",
+plot(x, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Normalized time", ylab = "Value",
      main = "Simultaneous bands (clustered)")
 
-matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
-polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
+matlines(x, Y, col = grDevices::adjustcolor("gray40", 0.20), lty = 1)
+polygon(c(x, rev(x)), c(fit_pred$lower, rev(fit_pred$upper)),
         col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
-polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
-        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
-lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
+polygon(c(x, rev(x)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("darkorange", alpha.f = 0.30), border = NA)
+lines(x, fit_pred$mean, lwd = 2)
+lines(x, mu_true, col = "red", lwd = 2, lty = 2)
+```
+
+The following optional check generates one curve from each of many independent
+new subjects and estimates conditional simultaneous coverage of the fitted
+prediction band. It is skipped during CRAN checks and is illustrative rather
+than a replacement for an outer-loop simulation study.
+
+```{r clustered-future-coverage, eval = !is_cran}
+generate_new_subject_curve <- function() {
+  new_subject_effect <-
+    rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x)
+  new_curve_effect <-
+    rnorm(1, sd = 0.18) * sin(4 * pi * x) +
+    rnorm(1, sd = 0.12) * cos(4 * pi * x)
+  mu_true + new_subject_effect + new_curve_effect
+}
+
+future_curves <- replicate(500L, generate_new_subject_curve())
+covered <- apply(future_curves, 2L, function(curve) {
+  all(curve >= fit_pred$lower & curve <= fit_pred$upper)
+})
+mean(covered)
 ```
 
 ## Choosing `k.coef` (Fourier harmonics)
@@ -196,12 +282,13 @@ One simple way to inspect the effect of `k.coef` is to evaluate the **reconstruc
 # MSE vs k.coef for the i.i.d. example (uses Y from above)
 
 fourier_basis <- function(T, K) {
-  t <- seq_len(T)
+  t <- 0:(T - 1L)
+  denom <- T - 1L
   if (K == 0L) return(cbind(1))
   cbind(
     1,
-    sapply(1:K, function(k) cos(2*pi*k*t/T)),
-    sapply(1:K, function(k) sin(2*pi*k*t/T))
+    sapply(1:K, function(k) cos(2*pi*k*t/denom)),
+    sapply(1:K, function(k) sin(2*pi*k*t/denom))
   )
 }
 
@@ -263,8 +350,9 @@ band(data, type = c("prediction","confidence"),
 - **B**: bootstrap reps.
 - **k.coef**: Fourier harmonics (default `50`; clamped to a grid-specific max).
 
-**Return value.** A list with numeric vectors `lower`, `mean`, `upper` (length `T`)
-and `meta` (settings, `n`, `T`, etc.).
+**Return value.** A list with numeric vectors `lower`, `mean`, `upper` (length
+`T`) and `meta`. The metadata records the estimand, weighting convention,
+bootstrap unit, curve representation, and cluster sizes where applicable.
 
 ## References
 
