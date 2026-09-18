@@ -1,3 +1,7 @@
+# funbootband (development version)
+
+* Began JSS-oriented development following the CRAN 0.3.0 release.
+
 # funbootband 0.3.0
 
 * Replaced the former curve-by-curve hierarchical sampler with an intact-subject
