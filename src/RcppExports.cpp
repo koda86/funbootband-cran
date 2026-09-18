@@ -10,38 +10,37 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// prediction_max_dev_cpp
-Rcpp::NumericVector prediction_max_dev_cpp(const Rcpp::NumericMatrix resid_mat, const Rcpp::NumericVector mu_hat, const Rcpp::NumericVector sd_hat, const Rcpp::IntegerMatrix idx_mat);
-RcppExport SEXP _funbootband_prediction_max_dev_cpp(SEXP resid_matSEXP, SEXP mu_hatSEXP, SEXP sd_hatSEXP, SEXP idx_matSEXP) {
+// prediction_curve_max_dev_weighted_cpp
+Rcpp::NumericMatrix prediction_curve_max_dev_weighted_cpp(const Rcpp::NumericMatrix data, const Rcpp::NumericMatrix boot_weights, const double ridge);
+RcppExport SEXP _funbootband_prediction_curve_max_dev_weighted_cpp(SEXP dataSEXP, SEXP boot_weightsSEXP, SEXP ridgeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type resid_mat(resid_matSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type mu_hat(mu_hatSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type sd_hat(sd_hatSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::IntegerMatrix >::type idx_mat(idx_matSEXP);
-    rcpp_result_gen = Rcpp::wrap(prediction_max_dev_cpp(resid_mat, mu_hat, sd_hat, idx_mat));
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type boot_weights(boot_weightsSEXP);
+    Rcpp::traits::input_parameter< const double >::type ridge(ridgeSEXP);
+    rcpp_result_gen = Rcpp::wrap(prediction_curve_max_dev_weighted_cpp(data, boot_weights, ridge));
     return rcpp_result_gen;
 END_RCPP
 }
-// confidence_max_dev_cpp
-NumericVector confidence_max_dev_cpp(const NumericMatrix data, const NumericVector mu_hat, const NumericVector se_hat, const IntegerMatrix idx_mat);
-RcppExport SEXP _funbootband_confidence_max_dev_cpp(SEXP dataSEXP, SEXP mu_hatSEXP, SEXP se_hatSEXP, SEXP idx_matSEXP) {
+// confidence_max_dev_studentized_cpp
+Rcpp::NumericVector confidence_max_dev_studentized_cpp(const Rcpp::NumericMatrix unit_data, const Rcpp::NumericVector mu_hat, const Rcpp::NumericMatrix boot_weights, const double ridge);
+RcppExport SEXP _funbootband_confidence_max_dev_studentized_cpp(SEXP unit_dataSEXP, SEXP mu_hatSEXP, SEXP boot_weightsSEXP, SEXP ridgeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const NumericMatrix >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< const NumericVector >::type mu_hat(mu_hatSEXP);
-    Rcpp::traits::input_parameter< const NumericVector >::type se_hat(se_hatSEXP);
-    Rcpp::traits::input_parameter< const IntegerMatrix >::type idx_mat(idx_matSEXP);
-    rcpp_result_gen = Rcpp::wrap(confidence_max_dev_cpp(data, mu_hat, se_hat, idx_mat));
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type unit_data(unit_dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type mu_hat(mu_hatSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix >::type boot_weights(boot_weightsSEXP);
+    Rcpp::traits::input_parameter< const double >::type ridge(ridgeSEXP);
+    rcpp_result_gen = Rcpp::wrap(confidence_max_dev_studentized_cpp(unit_data, mu_hat, boot_weights, ridge));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_funbootband_prediction_max_dev_cpp", (DL_FUNC) &_funbootband_prediction_max_dev_cpp, 4},
-    {"_funbootband_confidence_max_dev_cpp", (DL_FUNC) &_funbootband_confidence_max_dev_cpp, 4},
+    {"_funbootband_prediction_curve_max_dev_weighted_cpp", (DL_FUNC) &_funbootband_prediction_curve_max_dev_weighted_cpp, 3},
+    {"_funbootband_confidence_max_dev_studentized_cpp", (DL_FUNC) &_funbootband_confidence_max_dev_studentized_cpp, 4},
     {NULL, NULL, 0}
 };
 

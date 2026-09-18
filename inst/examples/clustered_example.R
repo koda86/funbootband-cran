@@ -1,48 +1,55 @@
-## clustered (hierarchical) example
+## Clustered example: repeated curves nested within subjects
 
 set.seed(2)
-T <- 200
-m <- c(5, 5)
+T <- 101L
 x <- seq(0, 1, length.out = T)
 
-# Cluster-specific means
-mu <- list(
-  function(z) 8 * sin(2 * pi * z),
-  function(z) 8 * cos(2 * pi * z)
-)
+# Twelve independent subjects contribute unequal numbers of repeated curves.
+K_subject <- 12L
+m <- rep(c(2L, 3L, 4L), length.out = K_subject)
+id <- rep(seq_len(K_subject), m)
 
-# Generate curves with smooth within-cluster variation
-Bm <- cbind(sin(2 * pi * x), cos(2 * pi * x))
-gen_curve <- function(k) {
-  sc <- rnorm(ncol(Bm), sd = c(2.0, 1.5))
-  mu[[k]](x) + as.vector(Bm %*% sc)
+mu_true <- 0.7 * sin(2 * pi * x) - 0.2 * cos(4 * pi * x)
+
+# Smooth subject-specific deviations from the population mean.
+subject_effect <- sapply(seq_len(K_subject), function(i) {
+  rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x)
+})
+
+# Smooth curve-to-curve deviations within a subject.
+within_subject_effect <- function() {
+  rnorm(1, sd = 0.18) * sin(4 * pi * x) +
+    rnorm(1, sd = 0.12) * cos(4 * pi * x)
 }
 
-Ylist <- lapply(seq_along(m), function(k) {
-  sapply(seq_len(m[k]), function(i) gen_curve(k) + rnorm(T, sd = 0.6))
+Y <- sapply(seq_along(id), function(j) {
+  mu_true + subject_effect[, id[j]] + within_subject_effect()
 })
-Y <- do.call(cbind, Ylist)
-colnames(Y) <- unlist(mapply(
-  function(k, mk) paste0("C", k, "_", seq_len(mk)),
-  seq_along(m), m
-))
 
+trial <- ave(id, id, FUN = seq_along)
+colnames(Y) <- paste0("subject", id, "_trial", trial)
 
-# Fit prediction and confidence bands
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
+# The prediction target is one Fourier-reconstructed curve from a new subject.
+fit_pred <- band(Y, type = "prediction", alpha = 0.10,
+                 iid = FALSE, id = id, B = 500L, k.coef = 4L)
 
-# Plot the results
-x_idx <- seq_len(fit_pred$meta$T)
-ylim   <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+# The confidence target is the equally subject-weighted population mean curve.
+fit_conf <- band(Y, type = "confidence", alpha = 0.10,
+                 iid = FALSE, id = id, B = 500L, k.coef = 4L)
 
-plot(x_idx, fit_pred$mean, type = "n", ylim = ylim,
-     xlab = "Index (Time)", ylab = "Amplitude",
+fit_pred$meta[c("target", "weighting", "bootstrap_unit", "n_clusters")]
+
+# Plot the results.
+ylim <- range(c(Y, fit_pred$lower, fit_pred$upper), finite = TRUE)
+plot(x, fit_pred$mean, type = "n", ylim = ylim,
+     xlab = "Normalized time", ylab = "Value",
      main = "Simultaneous bands (clustered)")
-
-matlines(x_idx, Y, col = "gray70", lty = 1, lwd = 1)
-polygon(c(x_idx, rev(x_idx)), c(fit_pred$lower, rev(fit_pred$upper)),
-        col = grDevices::adjustcolor("steelblue", alpha.f = 0.25), border = NA)
-polygon(c(x_idx, rev(x_idx)), c(fit_conf$lower, rev(fit_conf$upper)),
-        col = grDevices::adjustcolor("gray40", alpha.f = 0.3), border = NA)
-lines(x_idx, fit_pred$mean, col = "black", lwd = 1)
+matlines(x, Y, col = grDevices::adjustcolor("gray40", 0.20), lty = 1)
+polygon(c(x, rev(x)), c(fit_pred$lower, rev(fit_pred$upper)),
+        col = grDevices::adjustcolor("steelblue", 0.25), border = NA)
+polygon(c(x, rev(x)), c(fit_conf$lower, rev(fit_conf$upper)),
+        col = grDevices::adjustcolor("darkorange", 0.30), border = NA)
+lines(x, fit_pred$mean, lwd = 2)
+lines(x, mu_true, col = "red", lwd = 2, lty = 2)

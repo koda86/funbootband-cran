@@ -1,37 +1,34 @@
-## Test environments
+## Submission type
 
-* Local: Ubuntu 24.04.2 LTS, R 4.5.1 (x86_64), GCC 13.3.0
-* No external services; no network access required.
-* Examples and vignette use small `B` on CRAN to keep run time short.
-* win-builder (Windows Server 2022):
-  - R-release: 0 errors, 0 warnings, 1 note (“New submission”)
-  - R-devel:   0 errors, 0 warnings, 1 note (“New submission”)
+Update from CRAN version 0.2.0 to 0.3.0.
+
+## Major changes
+
+* Corrected clustered resampling so that subjects are sampled with replacement
+  and all curves belonging to each selected subject are retained intact.
+* Defined clustered prediction as one Fourier-reconstructed future curve from
+  an independent new subject.
+* Introduced equal-subject/equal-within-subject weighting, including for unequal
+  cluster sizes.
+* Corrected prediction calibration to retain curve-level supremum statistics
+  and use bootstrap-replicate-specific pointwise scales.
+* Clustered confidence bands now use subject mean curves for their pointwise
+  standard errors and replicate-specific studentization.
+* Updated documentation, examples, tests, and validation materials.
 
 ## R CMD check results
 
-0 errors | 0 warnings | 2 notes
+## R CMD check results
 
-* **Future file timestamps**  
-  “unable to verify current time” — this is a known benign NOTE on some systems/containers and is not package-specific.
+* Win-builder R-devel: 0 errors, 0 warnings, 0 notes.
+* Win-builder R-release: 0 errors, 0 warnings, 1 note.
 
-* **Compilation flags**  
-  “Compilation used the following non-portable flag(s): ‘-mno-omit-leaf-frame-pointer’.”  
-  This flag is injected by Ubuntu’s system `Makeconf`; it is **not** set in the package sources (no `src/Makevars*`).  
-  CRAN’s build machines will not inherit these local flags.
+The R-release NOTE resulted from timeouts while Win-builder was checking
+valid GitHub URLs listed in DESCRIPTION and README.md. The same source
+package passed these checks on R-devel. This was a transient external
+network issue.
 
-* **win-builder**: see above (only “New submission” NOTE).
+## Reverse dependencies
 
-## Submission type
-
-**New submission** — this is the first CRAN release of the package.
-
-## Additional package notes
-
-* No writing to the file system beyond temporary directories.
-* No remote resources are accessed in examples, tests, or vignettes.
-* The vignette adapts computation via `NOT_CRAN` to meet CRAN run-time expectations.
-
-## Downstream dependencies
-
-* This is an initial submission; there are no reverse dependencies yet.
-
+No reverse dependencies were listed on the CRAN package page when preparing
+this release candidate. Recheck immediately before submission.

@@ -1,4 +1,3 @@
-
 # funbootband
 
 <!-- badges: start -->
@@ -6,96 +5,95 @@
 [![Codecov test coverage](https://codecov.io/gh/koda86/funbootband-cran/graph/badge.svg)](https://app.codecov.io/gh/koda86/funbootband-cran)
 <!-- badges: end -->
 
-`funbootband` computes **simultaneous prediction and confidence bands** for dense time series data (e.g., gait curves sampled on a common grid). It accepts ordinary
-matrix/array inputs and internally maps them to a smooth functional representation (finite Fourier basis by default) for calibration. It supports i.i.d. and **clustered** (hierarchical) designs and uses a fast **Rcpp** backend
-for the bootstrap.
+`funbootband` computes simultaneous prediction and confidence bands for dense
+functional data observed on a common grid. Curves are represented by finite
+Fourier series before bootstrap calibration. The package supports independent
+curves and repeated curves nested within subjects.
+
+For clustered data, version 0.3.0 uses an intact-subject bootstrap: subjects are
+sampled with replacement and all curves belonging to a selected subject are
+retained. Subjects receive equal weight, including when cluster sizes differ.
+The clustered prediction target is one Fourier-reconstructed future curve from
+an independent new subject.
 
 ## Installation
 
-
-The stable release is available on CRAN:
+Install the CRAN release with:
 
 ```r
 install.packages("funbootband")
 ```
 
-You can install the development version of funbootband from [GitHub](https://github.com/) with:
+Install the development version with:
 
-``` r
+```r
 # install.packages("pak")
 pak::pak("koda86/funbootband-cran")
 ```
 
-## Example
+## Independent curves
 
-### i.i.d. example with smooth simulated curves
-
-Below we simulate smooth time-series data from a Gaussian-process model and compute both
-**simultaneous prediction** and **confidence bands**:
-
-``` r
+```r
 library(funbootband)
 
 set.seed(1)
-T <- 200; n <- 10
+T <- 101L
+n <- 30L
 x <- seq(0, 1, length.out = T)
+mu <- 0.7 * sin(2 * pi * x) - 0.2 * cos(4 * pi * x)
 
-# simulate smooth Gaussian-process-like curves
-mu  <- 10 * sin(2 * pi * x)
-ell <- 0.12; sig <- 3
-Kmat <- outer(x, x, function(s, t) sig^2 * exp(-(s - t)^2 / (2 * ell^2)))
-ev <- eigen(Kmat + 1e-8 * diag(T), symmetric = TRUE)
-Z  <- matrix(rnorm(T * n), T, n)
-Y  <- mu + ev$vectors %*% (sqrt(pmax(ev$values, 0)) * Z)
-Y  <- Y + matrix(rnorm(T * n, sd = 0.2), T, n)
+Y <- replicate(n, {
+  mu + rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x)
+})
 
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = TRUE, B = 1000L, k.coef = 50L)
+fit_pred <- band(Y, type = "prediction", alpha = 0.10,
+                 iid = TRUE, B = 1000L, k.coef = 4L)
+fit_conf <- band(Y, type = "confidence", alpha = 0.10,
+                 iid = TRUE, B = 1000L, k.coef = 4L)
 ```
 
-![Simultaneous prediction and confidence bands (i.i.d.)](man/figures/README_iid_plot.png)
+## Repeated curves nested within subjects
 
-### Clustered example with smooth simulated curves
-
-This example illustrates the use of `band()` for **clustered time-series data**, where
-each group (cluster) has its own mean pattern and within-cluster variation.
-
-``` r
-library(funbootband)
-
+```r
 set.seed(2)
-T <- 200
-m <- c(5, 5)
-x <- seq(0, 1, length.out = T)
+K_subject <- 12L
+m <- rep(c(2L, 3L, 4L), length.out = K_subject)
+id <- rep(seq_len(K_subject), m)
 
-# cluster-specific means
-mu <- list(
-  function(z) 8 * sin(2 * pi * z),
-  function(z) 8 * cos(2 * pi * z)
+subject_effect <- sapply(seq_len(K_subject), function(i) {
+  rnorm(1, sd = 0.35) +
+    rnorm(1, sd = 0.30) * sin(2 * pi * x) +
+    rnorm(1, sd = 0.20) * cos(2 * pi * x)
+})
+
+Y_clustered <- sapply(seq_along(id), function(j) {
+  mu + subject_effect[, id[j]] +
+    rnorm(1, sd = 0.18) * sin(4 * pi * x) +
+    rnorm(1, sd = 0.12) * cos(4 * pi * x)
+})
+
+fit_clustered <- band(
+  Y_clustered,
+  type = "prediction",
+  alpha = 0.10,
+  iid = FALSE,
+  id = id,
+  B = 1000L,
+  k.coef = 4L
 )
 
-# smooth within-cluster variation
-Bm <- cbind(sin(2 * pi * x), cos(2 * pi * x))
-gen_curve <- function(k) {
-  sc <- rnorm(ncol(Bm), sd = c(2.0, 1.5))
-  mu[[k]](x) + as.vector(Bm %*% sc)
-}
-
-Ylist <- lapply(seq_along(m), function(k) {
-  sapply(seq_len(m[k]), function(i) gen_curve(k) + rnorm(T, sd = 0.6))
-})
-Y <- do.call(cbind, Ylist)
-colnames(Y) <- unlist(mapply(
-  function(k, mk) paste0("C", k, "_", seq_len(mk)),
-  seq_along(m), m
-))
-
-fit_pred <- band(Y, type = "prediction", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
-fit_conf <- band(Y, type = "confidence", alpha = 0.11, iid = FALSE, B = 1000L, k.coef = 50L)
+fit_clustered$meta[c(
+  "target", "weighting", "bootstrap_unit", "n_clusters"
+)]
 ```
 
-![Simultaneous prediction and confidence bands (clustered)](man/figures/README_clustered_plot.png)
+The clustered band is marginal over the subject population. It is not a
+conditional band for an already observed subject and does not provide joint
+coverage for several future curves.
 
 ## References
-- Lenhoff et al. (1999) <doi:10.1016/S0966-6362(98)00043-5>  
+
+- Lenhoff et al. (1999) <doi:10.1016/S0966-6362(98)00043-5>
 - Koska et al. (2023) <doi:10.1016/j.jbiomech.2023.111506>
