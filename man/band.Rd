@@ -40,10 +40,11 @@ length. Larger values fit more high-frequency detail; smaller
 values smooth more.}
 }
 \value{
-A list with elements \code{lower}, \code{mean}, \code{upper} (each of length T) and
-\code{meta}. For clustered prediction, \code{meta$target} records the estimand
-\code{"new_subject_new_curve"} and \code{meta$weighting} records the subject-first
-weighting convention.
+An object of class \code{funbootband}, implemented as a list with elements
+\code{lower}, \code{mean}, \code{upper} (each of length T) and \code{meta}. Existing code can
+continue to access these components with \code{$}. For clustered prediction,
+\code{meta$target} records the estimand \code{"new_subject_new_curve"} and
+\code{meta$weighting} records the subject-first weighting convention.
 }
 \description{
 Create simultaneous bootstrap bands for dense functional data

@@ -35,6 +35,7 @@ test_that("band() runs for valid inputs (i.i.d., prediction & confidence)", {
   fitP <- band(Y, type = "prediction", alpha = 0.10, iid = TRUE,
                B = 120, k.coef = 8L)
   expect_type(fitP, "list")
+  expect_s3_class(fitP, "funbootband")
   expect_equal(sort(names(fitP)), sort(c("lower","mean","upper","meta")))
   expect_equal(length(fitP$lower), T)
   expect_equal(length(fitP$upper), T)

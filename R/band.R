@@ -41,10 +41,11 @@
 #' units and studentizes every bootstrap replicate with its own pointwise
 #' standard error.
 #'
-#' @return A list with elements `lower`, `mean`, `upper` (each of length T) and
-#'   `meta`. For clustered prediction, `meta$target` records the estimand
-#'   `"new_subject_new_curve"` and `meta$weighting` records the subject-first
-#'   weighting convention.
+#' @return An object of class `funbootband`, implemented as a list with elements
+#'   `lower`, `mean`, `upper` (each of length T) and `meta`. Existing code can
+#'   continue to access these components with `$`. For clustered prediction,
+#'   `meta$target` records the estimand `"new_subject_new_curve"` and
+#'   `meta$weighting` records the subject-first weighting convention.
 #'
 #' @example inst/examples/iid_example.R
 #' @example inst/examples/clustered_example.R
@@ -195,7 +196,7 @@ band <- function(data,
     upper <- mu_hat + c_c * se_hat
   }
 
-  list(
+  out <- list(
     lower = as.numeric(lower),
     mean  = as.numeric(mu_hat),
     upper = as.numeric(upper),
@@ -224,6 +225,11 @@ band <- function(data,
       engine = "cpp"
     )
   )
+
+  # Keep the established list structure and component names while adding an
+  # S3 class for print(), summary(), and plot() methods.
+  class(out) <- c("funbootband", "list")
+  out
 }
 
 # ----- internal helpers (do not export) -----

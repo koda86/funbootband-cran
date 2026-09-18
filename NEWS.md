@@ -1,6 +1,9 @@
 # funbootband (development version)
 
 * Began JSS-oriented development following the CRAN 0.3.0 release.
+* Added a backward-compatible `funbootband` S3 class with concise `print()`,
+  informative `summary()`, and base-R `plot()` methods. The established list
+  components remain directly accessible.
 
 # funbootband 0.3.0
 
