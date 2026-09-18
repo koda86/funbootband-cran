@@ -13,7 +13,7 @@ Description: Computes simultaneous prediction and confidence bands for densely
     motivated by Koska et al. (2023)
     <doi:10.1016/j.jbiomech.2023.111506>. Independent curves are resampled
     individually. Clustered data use an intact-subject bootstrap with equal
-    subject weighting, and the clustered prediction estimand is one future
+    subject weighting, and the clustered prediction target is one future
     curve from a new subject. Curves are represented by finite Fourier series,
     and an 'Rcpp' backend performs the bootstrap calibration.
 License: GPL-3
