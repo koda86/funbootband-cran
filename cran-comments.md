@@ -18,10 +18,15 @@ Update from CRAN version 0.2.0 to 0.3.0.
 
 ## R CMD check results
 
-Before submission, replace this paragraph with the results from checking the
-exact 0.3.0 tarball on local R-release/R-devel and Winbuilder. Explain every
-remaining NOTE. The intended submission standard is 0 errors, 0 warnings, and
-no unexplained notes.
+## R CMD check results
+
+* Win-builder R-devel: 0 errors, 0 warnings, 0 notes.
+* Win-builder R-release: 0 errors, 0 warnings, 1 note.
+
+The R-release NOTE resulted from timeouts while Win-builder was checking
+valid GitHub URLs listed in DESCRIPTION and README.md. The same source
+package passed these checks on R-devel. This was a transient external
+network issue.
 
 ## Reverse dependencies
 
