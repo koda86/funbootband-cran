@@ -35,15 +35,17 @@ are inferred from column names by prefix (up to the first underscore, hyphen, or
 use smaller values in examples/tests).}
 
 \item{k.coef}{Integer; number of Fourier harmonics (default 50).
-Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
-length. Larger values fit more high-frequency detail; smaller
+Automatically clamped to \eqn{\lfloor (T-2)/2 \rfloor} based on the grid
+length. This keeps sine/cosine harmonics in complete pairs on the
+periodic grid. Larger values fit more high-frequency detail; smaller
 values smooth more.}
 }
 \value{
-A list with elements \code{lower}, \code{mean}, \code{upper} (each of length T) and
-\code{meta}. For clustered prediction, \code{meta$target} records the estimand
-\code{"new_subject_new_curve"} and \code{meta$weighting} records the subject-first
-weighting convention.
+An object of class \code{funbootband}, implemented as a list with elements
+\code{lower}, \code{mean}, \code{upper} (each of length T) and \code{meta}. Existing code can
+continue to access these components with \code{$}. For clustered prediction,
+\code{meta$target} records the estimand \code{"new_subject_new_curve"} and
+\code{meta$weighting} records the subject-first weighting convention.
 }
 \description{
 Create simultaneous bootstrap bands for dense functional data
@@ -68,6 +70,12 @@ resampling description in Koska et al. (2023).
 Clustered confidence inference treats subject mean curves as the independent
 units and studentizes every bootstrap replicate with its own pointwise
 standard error.
+
+Very small numbers of independent sampling units can produce bootstrap
+replicates with zero pointwise scale. \code{band()} reports an error when the
+chance of drawing only one distinct independent unit could dominate the
+requested calibration tail. Independent units are curves for i.i.d. data
+and subjects for clustered data.
 }
 \examples{
 ## Independent-curve example

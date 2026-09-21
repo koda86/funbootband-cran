@@ -262,8 +262,8 @@ mean(covered)
 `k.coef` controls the number of sine/cosine harmonics (plus intercept) used to
 represent each curve before bootstrapping.
 
-- The code automatically **clamps** `k.coef` to the maximum meaningful value
-  on a length-`T` periodic grid. If a larger value is supplied, it is reduced accordingly.
+- If `k.coef` is too large for the grid, the package reduces it to the
+  largest supported value and gives a warning.
 - In practice, choose the smallest `k.coef` that **adequately reconstructs** your curves.
 
 **Heuristic for selecting `k.coef`**
@@ -284,7 +284,7 @@ One simple way to inspect the effect of `k.coef` is to evaluate the **reconstruc
 fourier_basis <- function(T, K) {
   t <- 0:(T - 1L)
   denom <- T - 1L
-  if (K == 0L) return(cbind(1))
+  if (K == 0L) return(matrix(1, nrow = T, ncol = 1L))
   cbind(
     1,
     sapply(1:K, function(k) cos(2*pi*k*t/denom)),
@@ -299,8 +299,9 @@ reconstruct <- function(B, Y) {
 
 mse <- function(A, B) mean((A - B)^2)
 
-Ks <- c(10L, 20L, 30L, 40L, 50L, 60L, 70L, 80L, 90L, 99L)
 T  <- nrow(Y)
+maxK <- as.integer(floor((T - 2L) / 2L))
+Ks <- unique(as.integer(round(seq(0, maxK, length.out = 9L))))
 
 tab <- do.call(rbind, lapply(Ks, function(K){
   B <- fourier_basis(T, K)
@@ -321,6 +322,10 @@ plot(tab$k.coef, tab$mse, type = "b", xlab = "k.coef", ylab = "MSE",
 **Recommendation**
 
 If your curves are smooth and runtime is not a concern, moderately large `k.coef` values (e.g., 20–50 for dense grids) are often a good choice. For noisy data or when computation time matters, examine how the reconstruction error (or resulting band limits) changes with k.coef and select the smallest value beyond which improvements become negligible. Recomputing the bands for a few candidate values can also help confirm that results have converged.
+
+In-sample reconstruction error alone cannot establish good coverage: it can
+decrease as the basis fits noise. Check that substantive conclusions are stable
+across plausible choices of `k.coef`.
 
 ## Tuning `B` (bootstrap replicates)
 

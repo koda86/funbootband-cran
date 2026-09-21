@@ -1,3 +1,15 @@
+# funbootband (development version)
+
+* Added an informative error for sample sizes and confidence levels where
+  bootstrap draws of one distinct curve or subject can dominate calibration
+  and produce bands determined by the numerical scale floor.
+* Prevented a redundant Fourier sine term at the highest harmonic on
+  odd-length periodic grids; the k.coef cap is now floor((T - 2)/2).
+* Began JSS-oriented development following the CRAN 0.3.0 release.
+* Added a backward-compatible `funbootband` S3 class with concise `print()`,
+  informative `summary()`, and base-R `plot()` methods. The established list
+  components remain directly accessible.
+
 # funbootband 0.3.0
 
 * Replaced the former curve-by-curve hierarchical sampler with an intact-subject

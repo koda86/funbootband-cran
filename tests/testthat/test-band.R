@@ -35,6 +35,7 @@ test_that("band() runs for valid inputs (i.i.d., prediction & confidence)", {
   fitP <- band(Y, type = "prediction", alpha = 0.10, iid = TRUE,
                B = 120, k.coef = 8L)
   expect_type(fitP, "list")
+  expect_s3_class(fitP, "funbootband")
   expect_equal(sort(names(fitP)), sort(c("lower","mean","upper","meta")))
   expect_equal(length(fitP$lower), T)
   expect_equal(length(fitP$upper), T)
@@ -68,11 +69,12 @@ test_that("band() works for clustered data via explicit id", {
 })
 
 test_that("clustered centre is subject-weighted when cluster sizes differ", {
-  # Subject 1 has two zero curves; subject 2 has four curves equal to 12.
-  # A pooled curve mean is 8, whereas the stated new-subject target has mean 6.
+  # Subject means are 0, 12, 6, and 6, giving an equally subject-weighted
+  # mean of 6. The pooled curve mean is 7.2 because subject 2 has four curves.
   T <- 8
-  id <- c(1, 1, 2, 2, 2, 2)
-  Y <- matrix(rep(c(0, 0, 12, 12, 12, 12), each = T), nrow = T)
+  id <- c(1, 1, 2, 2, 2, 2, 3, 3, 4, 4)
+  curve_values <- c(0, 0, 12, 12, 12, 12, 6, 6, 6, 6)
+  Y <- matrix(rep(curve_values, each = T), nrow = T)
 
   set.seed(20)
   fit <- band(Y, type = "prediction", alpha = 0.10, iid = FALSE,
@@ -86,6 +88,42 @@ test_that("clustered centre is subject-weighted when cluster sizes differ", {
   expect_identical(fit$meta$weighting,
                    "equal_subject_then_equal_curve_within_subject")
   expect_identical(fit_conf$meta$target, "subject_weighted_population_mean")
+})
+
+test_that("degenerate bootstrap tails are rejected for too few units", {
+  T <- 20L
+  Y2 <- matrix(rep(c(0, 1), each = T), nrow = T)
+  expect_error(
+    band(Y2, type = "prediction", alpha = 0.10, B = 30L, k.coef = 0L),
+    "Too few independent curves"
+  )
+  expect_error(
+    band(Y2, type = "confidence", alpha = 0.10, B = 30L, k.coef = 0L),
+    "Too few independent curves"
+  )
+
+  Y3 <- matrix(rep(c(0, 0.5, 1), each = T), nrow = T)
+  expect_error(
+    band(Y3, type = "confidence", alpha = 0.10, B = 30L, k.coef = 0L),
+    "Too few independent curves"
+  )
+  expect_error(
+    band(Y3, type = "prediction", alpha = 0.05, B = 30L, k.coef = 0L),
+    "Too few independent curves"
+  )
+
+  id2 <- rep(seq_len(2L), each = 2L)
+  Ycl <- matrix(rep(c(0, 0, 1, 1), each = T), nrow = T)
+  expect_error(
+    band(Ycl, type = "prediction", alpha = 0.10, iid = FALSE,
+         id = id2, B = 30L, k.coef = 0L),
+    "Too few independent subjects"
+  )
+  expect_error(
+    band(Ycl, type = "confidence", alpha = 0.10, iid = FALSE,
+         id = id2, B = 30L, k.coef = 0L),
+    "Too few independent subjects"
+  )
 })
 
 test_that("cluster bootstrap copies selected subjects intact", {
@@ -176,16 +214,18 @@ test_that("constant curves produce finite zero-width bands", {
 
 test_that("band() infers clusters from column-name prefixes when id is missing", {
   set.seed(3)
-  T <- 25; n <- 12
+  T <- 25; n <- 16
   Y <- matrix(rnorm(T * n, sd = 0.3), nrow = T, ncol = n)
-  # prefixes define clusters: subj1_* , subj2_* , subj3_*
+  # Prefixes define four clusters, each with four repeated curves.
   colnames(Y) <- c(paste0("subj1_rep", 1:4),
                    paste0("subj2_rep", 1:4),
-                   paste0("subj3_rep", 1:4))
+                   paste0("subj3_rep", 1:4),
+                   paste0("subj4_rep", 1:4))
   expect_no_error(
-    band(Y, type = "confidence", alpha = 0.10, iid = FALSE,
-         B = 80, k.coef = 8L)
+    fit <- band(Y, type = "confidence", alpha = 0.10, iid = FALSE,
+                B = 80, k.coef = 8L)
   )
+  expect_identical(fit$meta$n_clusters, 4L)
 })
 
 test_that("excessive k.coef is clamped with a warning", {
@@ -204,6 +244,26 @@ test_that("excessive k.coef is clamped with a warning", {
   )
 
   expect_identical(fit$meta$k.coef, 4L)
+})
+
+test_that("odd-length periodic grids do not include the redundant Nyquist sine", {
+  set.seed(10)
+  Y <- matrix(rnorm(25L * 8L), nrow = 25L)
+
+  # A 25-point periodic grid has 24 distinct phases. At K = 12 the sine
+  # column is sin(pi * t) = 0 for every integer grid index t.
+  expect_warning(
+    fit <- band(Y, type = "prediction", B = 30L, k.coef = 12L),
+    "exceeds maximum 11"
+  )
+  expect_identical(fit$meta$k.coef, 11L)
+  expect_true(all(is.finite(c(fit$lower, fit$mean, fit$upper))))
+
+  for (Tlen in c(3L, 5L, 25L, 80L, 81L)) {
+    maxK <- as.integer(floor((Tlen - 2L) / 2L))
+    X <- funbootband:::fourier_design(Tlen, maxK)
+    expect_equal(qr(X)$rank, ncol(X), info = paste("T =", Tlen))
+  }
 })
 
 test_that("Invalid inputs raise informative errors", {

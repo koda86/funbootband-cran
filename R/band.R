@@ -18,8 +18,9 @@
 #' @param B Integer, number of bootstrap iterations (e.g., 1000 for final results;
 #'   use smaller values in examples/tests).
 #' @param k.coef Integer; number of Fourier harmonics (default 50).
-#'   Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
-#'   length. Larger values fit more high-frequency detail; smaller
+#'   Automatically clamped to \eqn{\lfloor (T-2)/2 \rfloor} based on the grid
+#'   length. This keeps sine/cosine harmonics in complete pairs on the
+#'   periodic grid. Larger values fit more high-frequency detail; smaller
 #'   values smooth more.
 #'
 #' @details
@@ -41,10 +42,17 @@
 #' units and studentizes every bootstrap replicate with its own pointwise
 #' standard error.
 #'
-#' @return A list with elements `lower`, `mean`, `upper` (each of length T) and
-#'   `meta`. For clustered prediction, `meta$target` records the estimand
-#'   `"new_subject_new_curve"` and `meta$weighting` records the subject-first
-#'   weighting convention.
+#' Very small numbers of independent sampling units can produce bootstrap
+#' replicates with zero pointwise scale. `band()` reports an error when the
+#' chance of drawing only one distinct independent unit could dominate the
+#' requested calibration tail. Independent units are curves for i.i.d. data
+#' and subjects for clustered data.
+#'
+#' @return An object of class `funbootband`, implemented as a list with elements
+#'   `lower`, `mean`, `upper` (each of length T) and `meta`. Existing code can
+#'   continue to access these components with `$`. For clustered prediction,
+#'   `meta$target` records the estimand `"new_subject_new_curve"` and
+#'   `meta$weighting` records the subject-first weighting convention.
 #'
 #' @example inst/examples/iid_example.R
 #' @example inst/examples/clustered_example.R
@@ -121,14 +129,38 @@ band <- function(data,
     cluster_sizes <- NULL
   }
 
+  # A bootstrap sample can consist of copies of one independent unit.
+  # For U units, P(one unique unit) = U^(1-U). In the prediction calibration
+  # the additional chance that a uniformly chosen pseudo-future unit is
+  # different is (U-1)/U. With one unique training unit, the replicate
+  # pointwise scale can be zero and a fixed 1e-12 numerical floor can produce
+  # arbitrarily large bands. Reject settings where these structurally
+  # degenerate samples can occupy the requested upper tail. This is a
+  # necessary guardrail, not a guarantee of coverage for other settings.
+  n_units <- if (iid) ncur else length(cluster_sizes)
+  collapse_mass <- exp((1 - n_units) * log(n_units))
+  if (type == "prediction") {
+    collapse_mass <- collapse_mass * (1 - 1 / n_units)
+  }
+  if (alpha <= collapse_mass) {
+    unit_name <- if (iid) "curves" else "subjects"
+    stop("Too few independent ", unit_name, " (", n_units,
+         ") for alpha = ", alpha, ": bootstrap resamples with one ",
+         "distinct sampling unit can dominate calibration. ",
+         "Use more independent ", unit_name, ".")
+  }
+
   # ---- Fourier preprocessing (Lenhoff-style) ----
   if (!is.numeric(k.coef) || length(k.coef) != 1L || !is.finite(k.coef) ||
       k.coef < 0 || k.coef != floor(k.coef)) {
     stop("`k.coef` must be one nonnegative integer.")
   }
   k.coef <- as.integer(k.coef)
-  # practical ceiling for periodic Fourier basis
-  maxK <- maxK <- as.integer(floor((Tlen - 1L) / 2L))
+  # The first and last grid points have the same Fourier phase, leaving T-1
+  # distinct phases. With odd T, harmonic (T-1)/2 has an identically zero
+  # sine column (the Nyquist frequency). Restrict to complete, independent
+  # sine/cosine pairs; for even T this leaves the previous cap unchanged.
+  maxK <- as.integer(floor((Tlen - 2L) / 2L))
   if (k.coef > maxK) {
     warning("`k.coef` = ", k.coef, " exceeds maximum ", maxK,
             " for T = ", Tlen, ". Using ", maxK, " instead.")
@@ -195,7 +227,7 @@ band <- function(data,
     upper <- mu_hat + c_c * se_hat
   }
 
-  list(
+  out <- list(
     lower = as.numeric(lower),
     mean  = as.numeric(mu_hat),
     upper = as.numeric(upper),
@@ -224,6 +256,11 @@ band <- function(data,
       engine = "cpp"
     )
   )
+
+  # Keep the established list structure and component names while adding an
+  # S3 class for print(), summary(), and plot() methods.
+  class(out) <- c("funbootband", "list")
+  out
 }
 
 # ----- internal helpers (do not export) -----

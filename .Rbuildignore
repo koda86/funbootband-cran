@@ -10,3 +10,5 @@
 ^man/figures/README.*\.png$
 ^doc$
 ^Meta$
+
+^development$
