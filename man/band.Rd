@@ -35,8 +35,9 @@ are inferred from column names by prefix (up to the first underscore, hyphen, or
 use smaller values in examples/tests).}
 
 \item{k.coef}{Integer; number of Fourier harmonics (default 50).
-Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
-length. Larger values fit more high-frequency detail; smaller
+Automatically clamped to \eqn{\lfloor (T-2)/2 \rfloor} based on the grid
+length. This keeps sine/cosine harmonics in complete pairs on the
+periodic grid. Larger values fit more high-frequency detail; smaller
 values smooth more.}
 }
 \value{

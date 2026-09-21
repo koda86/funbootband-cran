@@ -18,8 +18,9 @@
 #' @param B Integer, number of bootstrap iterations (e.g., 1000 for final results;
 #'   use smaller values in examples/tests).
 #' @param k.coef Integer; number of Fourier harmonics (default 50).
-#'   Automatically clamped to \eqn{\lfloor (T-1)/2 \rfloor} based on the grid
-#'   length. Larger values fit more high-frequency detail; smaller
+#'   Automatically clamped to \eqn{\lfloor (T-2)/2 \rfloor} based on the grid
+#'   length. This keeps sine/cosine harmonics in complete pairs on the
+#'   periodic grid. Larger values fit more high-frequency detail; smaller
 #'   values smooth more.
 #'
 #' @details
@@ -128,8 +129,11 @@ band <- function(data,
     stop("`k.coef` must be one nonnegative integer.")
   }
   k.coef <- as.integer(k.coef)
-  # practical ceiling for periodic Fourier basis
-  maxK <- maxK <- as.integer(floor((Tlen - 1L) / 2L))
+  # The first and last grid points have the same Fourier phase, leaving T-1
+  # distinct phases. With odd T, harmonic (T-1)/2 has an identically zero
+  # sine column (the Nyquist frequency). Restrict to complete, independent
+  # sine/cosine pairs; for even T this leaves the previous cap unchanged.
+  maxK <- as.integer(floor((Tlen - 2L) / 2L))
   if (k.coef > maxK) {
     warning("`k.coef` = ", k.coef, " exceeds maximum ", maxK,
             " for T = ", Tlen, ". Using ", maxK, " instead.")

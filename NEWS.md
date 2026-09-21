@@ -1,5 +1,7 @@
 # funbootband (development version)
 
+* Prevented a redundant Fourier sine term at the highest harmonic on
+  odd-length periodic grids; the k.coef cap is now floor((T - 2)/2).
 * Began JSS-oriented development following the CRAN 0.3.0 release.
 * Added a backward-compatible `funbootband` S3 class with concise `print()`,
   informative `summary()`, and base-R `plot()` methods. The established list

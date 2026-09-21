@@ -207,6 +207,26 @@ test_that("excessive k.coef is clamped with a warning", {
   expect_identical(fit$meta$k.coef, 4L)
 })
 
+test_that("odd-length periodic grids do not include the redundant Nyquist sine", {
+  set.seed(10)
+  Y <- matrix(rnorm(25L * 8L), nrow = 25L)
+
+  # A 25-point periodic grid has 24 distinct phases. At K = 12 the sine
+  # column is sin(pi * t) = 0 for every integer grid index t.
+  expect_warning(
+    fit <- band(Y, type = "prediction", B = 30L, k.coef = 12L),
+    "exceeds maximum 11"
+  )
+  expect_identical(fit$meta$k.coef, 11L)
+  expect_true(all(is.finite(c(fit$lower, fit$mean, fit$upper))))
+
+  for (Tlen in c(3L, 5L, 25L, 80L, 81L)) {
+    maxK <- as.integer(floor((Tlen - 2L) / 2L))
+    X <- funbootband:::fourier_design(Tlen, maxK)
+    expect_equal(qr(X)$rank, ncol(X), info = paste("T =", Tlen))
+  }
+})
+
 test_that("Invalid inputs raise informative errors", {
   T <- 10; n <- 5
   Y <- matrix(rnorm(T * n), nrow = T)
