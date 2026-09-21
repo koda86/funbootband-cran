@@ -70,6 +70,12 @@ resampling description in Koska et al. (2023).
 Clustered confidence inference treats subject mean curves as the independent
 units and studentizes every bootstrap replicate with its own pointwise
 standard error.
+
+Very small numbers of independent sampling units can produce bootstrap
+replicates with zero pointwise scale. \code{band()} reports an error when the
+chance of drawing only one distinct independent unit could dominate the
+requested calibration tail. Independent units are curves for i.i.d. data
+and subjects for clustered data.
 }
 \examples{
 ## Independent-curve example

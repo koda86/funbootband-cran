@@ -42,6 +42,12 @@
 #' units and studentizes every bootstrap replicate with its own pointwise
 #' standard error.
 #'
+#' Very small numbers of independent sampling units can produce bootstrap
+#' replicates with zero pointwise scale. `band()` reports an error when the
+#' chance of drawing only one distinct independent unit could dominate the
+#' requested calibration tail. Independent units are curves for i.i.d. data
+#' and subjects for clustered data.
+#'
 #' @return An object of class `funbootband`, implemented as a list with elements
 #'   `lower`, `mean`, `upper` (each of length T) and `meta`. Existing code can
 #'   continue to access these components with `$`. For clustered prediction,
@@ -121,6 +127,27 @@ band <- function(data,
   } else {
     id <- NULL
     cluster_sizes <- NULL
+  }
+
+  # A bootstrap sample can consist of copies of one independent unit.
+  # For U units, P(one unique unit) = U^(1-U). In the prediction calibration
+  # the additional chance that a uniformly chosen pseudo-future unit is
+  # different is (U-1)/U. With one unique training unit, the replicate
+  # pointwise scale can be zero and a fixed 1e-12 numerical floor can produce
+  # arbitrarily large bands. Reject settings where these structurally
+  # degenerate samples can occupy the requested upper tail. This is a
+  # necessary guardrail, not a guarantee of coverage for other settings.
+  n_units <- if (iid) ncur else length(cluster_sizes)
+  collapse_mass <- exp((1 - n_units) * log(n_units))
+  if (type == "prediction") {
+    collapse_mass <- collapse_mass * (1 - 1 / n_units)
+  }
+  if (alpha <= collapse_mass) {
+    unit_name <- if (iid) "curves" else "subjects"
+    stop("Too few independent ", unit_name, " (", n_units,
+         ") for alpha = ", alpha, ": bootstrap resamples with one ",
+         "distinct sampling unit can dominate calibration. ",
+         "Use more independent ", unit_name, ".")
   }
 
   # ---- Fourier preprocessing (Lenhoff-style) ----
